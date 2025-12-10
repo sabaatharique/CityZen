@@ -1,8 +1,6 @@
-import { Link, useLocation } from 'react-router-dom';
 import { Home, FileText, Bell, User, LogOut, Building2, Moon, Sun } from 'lucide-react';
 
-export default function Navigation({ onLogout, darkMode, toggleDarkMode }) {
-  const location = useLocation();
+export default function Navigation({ onLogout, darkMode, toggleDarkMode, navigation }) {
   const notificationCount = 3;
 
   return (
@@ -10,60 +8,39 @@ export default function Navigation({ onLogout, darkMode, toggleDarkMode }) {
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 text-[#1E88E5]">
-            <Building2 className="w-8 h-8" strokeWidth={1.5} />
-            <span className="text-xl hidden sm:inline">CityZen</span>
-          </Link>
+          {navigation?.navigate ? (
+            <button onClick={() => navigation.navigate('HomeTab')} className="flex items-center gap-2 text-[#1E88E5]">
+              <Building2 className="w-8 h-8" strokeWidth={1.5} />
+              <span className="text-xl hidden sm:inline">CityZen</span>
+            </button>
+          ) : (
+            <a href="/" className="flex items-center gap-2 text-[#1E88E5]">
+              <Building2 className="w-8 h-8" strokeWidth={1.5} />
+              <span className="text-xl hidden sm:inline">CityZen</span>
+            </a>
+          )}
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-1">
-            <Link
-              to="/"
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${
-                location.pathname === '/'
-                  ? 'bg-[#1E88E5] text-white'
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
-            >
+            <button onClick={() => (navigation?.navigate ? navigation.navigate('HomeTab') : (window.location.href = '/'))} className="flex items-center gap-2 px-4 py-2 rounded-lg transition text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
               <Home className="w-5 h-5" />
               <span>Home</span>
-            </Link>
+            </button>
 
-            <Link
-              to="/submit"
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${
-                location.pathname === '/submit'
-                  ? 'bg-[#1E88E5] text-white'
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
-            >
+            <button onClick={() => (navigation?.navigate ? navigation.navigate('Submit') : (window.location.href = '/submit'))} className="flex items-center gap-2 px-4 py-2 rounded-lg transition text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
               <FileText className="w-5 h-5" />
               <span>Submit</span>
-            </Link>
+            </button>
 
-            <Link
-              to="/feed"
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${
-                location.pathname === '/feed'
-                  ? 'bg-[#1E88E5] text-white'
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
-            >
+            <button onClick={() => (navigation?.navigate ? navigation.navigate('Feed') : (window.location.href = '/feed'))} className="flex items-center gap-2 px-4 py-2 rounded-lg transition text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
               <FileText className="w-5 h-5" />
               <span>Feed</span>
-            </Link>
+            </button>
 
-            <Link
-              to="/profile"
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${
-                location.pathname === '/profile'
-                  ? 'bg-[#1E88E5] text-white'
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
-            >
+            <button onClick={() => (navigation?.navigate ? navigation.navigate('Profile') : (window.location.href = '/profile'))} className="flex items-center gap-2 px-4 py-2 rounded-lg transition text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
               <User className="w-5 h-5" />
               <span>Profile</span>
-            </Link>
+            </button>
           </div>
 
           {/* Right Side Actions */}

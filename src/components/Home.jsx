@@ -1,9 +1,8 @@
-import { Link } from 'react-router-dom';
 import Navigation from './Navigation';
 import BottomNav from './BottomNav';
 import { FileText, List, CheckCircle, Clock, AlertCircle, TrendingUp, PlusCircle } from 'lucide-react';
 
-export default function Home({ onLogout, darkMode, toggleDarkMode }) {
+export default function Home({ onLogout, darkMode, toggleDarkMode, navigation }) {
   const userName = 'Alex';
   const stats = {
     total: 12,
@@ -29,10 +28,7 @@ export default function Home({ onLogout, darkMode, toggleDarkMode }) {
 
         {/* Quick Actions */}
         <div className="grid md:grid-cols-3 gap-4 mb-8">
-          <Link
-            to="/submit"
-            className="bg-gradient-to-br from-[#1E88E5] to-[#1565C0] text-white rounded-xl p-6 shadow-lg hover:shadow-xl transition transform hover:-translate-y-1"
-          >
+          <button onClick={() => (navigation?.navigate ? navigation.navigate('Submit') : (window.location.href = '/submit'))} className="bg-gradient-to-br from-[#1E88E5] to-[#1565C0] text-white rounded-xl p-6 shadow-lg hover:shadow-xl transition transform hover:-translate-y-1">
             <div className="flex items-center gap-4">
               <div className="bg-white/20 p-3 rounded-lg">
                 <PlusCircle className="w-8 h-8" />
@@ -42,12 +38,9 @@ export default function Home({ onLogout, darkMode, toggleDarkMode }) {
                 <p className="text-blue-100 text-sm">Report a new issue</p>
               </div>
             </div>
-          </Link>
+          </button>
 
-          <Link
-            to="/feed"
-            className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg hover:shadow-xl transition transform hover:-translate-y-1 border border-gray-200 dark:border-gray-700"
-          >
+          <button onClick={() => (navigation?.navigate ? navigation.navigate('Feed') : (window.location.href = '/feed'))} className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg hover:shadow-xl transition transform hover:-translate-y-1 border border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-4">
               <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
                 <List className="w-8 h-8 text-[#1E88E5]" />
@@ -57,12 +50,9 @@ export default function Home({ onLogout, darkMode, toggleDarkMode }) {
                 <p className="text-gray-600 dark:text-gray-400 text-sm">Browse all reports</p>
               </div>
             </div>
-          </Link>
+          </button>
 
-          <Link
-            to="/feed"
-            className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg hover:shadow-xl transition transform hover:-translate-y-1 border border-gray-200 dark:border-gray-700"
-          >
+          <button onClick={() => (navigation?.navigate ? navigation.navigate('Feed') : (window.location.href = '/feed'))} className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg hover:shadow-xl transition transform hover:-translate-y-1 border border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-4">
               <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg">
                 <FileText className="w-8 h-8 text-green-600" />
@@ -72,7 +62,7 @@ export default function Home({ onLogout, darkMode, toggleDarkMode }) {
                 <p className="text-gray-600 dark:text-gray-400 text-sm">Track your reports</p>
               </div>
             </div>
-          </Link>
+          </button>
         </div>
 
         {/* Stats Cards */}

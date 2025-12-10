@@ -1,17 +1,28 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, LogIn, Building2 } from 'lucide-react';
 
 export default function Login({ onLogin }) {
-  const navigate = useNavigate();
+  // navigation prop will be provided when used inside React Navigation.
+  // Fallback to window.location for non-RN web usage.
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('citizen');
 
   const handleSubmit = (e) => {
-    e.preventDefault();
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
     onLogin(role);
-    navigate('/');
+    if (typeof navigation !== 'undefined' && navigation?.navigate) {
+      try {
+        navigation.navigate('HomeTab');
+      } catch (err) {
+        navigation.navigate('HomeScreen');
+      }
+      return;
+    }
+
+    if (typeof window !== 'undefined') {
+      window.location.href = '/';
+    }
   };
 
   return (
@@ -160,9 +171,15 @@ export default function Login({ onLogin }) {
               <div className="text-center pt-4 border-t border-gray-200 dark:border-gray-700">
                 <p className="text-gray-600 dark:text-gray-400">
                   Don&apos;t have an account?{' '}
-                  <Link to="/signup" className="text-[#1E88E5] hover:underline">
-                    Create Account
-                  </Link>
+                  {typeof navigation !== 'undefined' && navigation?.navigate ? (
+                    <button type="button" onClick={() => navigation.navigate('Signup')} className="text-[#1E88E5] hover:underline">
+                      Create Account
+                    </button>
+                  ) : (
+                    <a href="/signup" className="text-[#1E88E5] hover:underline">
+                      Create Account
+                    </a>
+                  )}
                 </p>
               </div>
             </form>

@@ -68,8 +68,14 @@ function SidebarProvider({
         _setOpen(openState);
       }
 
-      // This sets the cookie to keep the sidebar state.
-      document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
+      // This sets the cookie to keep the sidebar state (web only).
+      if (typeof document !== 'undefined' && typeof document.cookie === 'string') {
+        try {
+          document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
+        } catch (e) {
+          // ignore write errors in non-browser-like environments
+        }
+      }
     },
     [setOpenProp, open],
   );
@@ -91,8 +97,11 @@ function SidebarProvider({
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    if (typeof window !== "undefined" && typeof window.addEventListener === 'function') {
+      window.addEventListener("keydown", handleKeyDown);
+      return () => window.removeEventListener("keydown", handleKeyDown);
+    }
+    return () => {};
   }, [toggleSidebar]);
 
   // We add a state so that we can do data-state="expanded" or "collapsed".

@@ -1,12 +1,10 @@
 import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
 import Navigation from './Navigation';
 import BottomNav from './BottomNav';
 import { MapPin, Calendar, Heart, MessageSquare, Upload, ArrowLeft, CheckCircle } from 'lucide-react';
 
-export default function ComplaintDetails({ onLogout, darkMode, toggleDarkMode }) {
-  const { id } = useParams();
-  const navigate = useNavigate();
+export default function ComplaintDetails({ onLogout, darkMode, toggleDarkMode, navigation, route }) {
+  const id = route?.params?.id ?? (typeof window !== 'undefined' ? window.location.pathname.split('/').pop() : null);
   const [upvoted, setUpvoted] = useState(false);
   const [upvotes, setUpvotes] = useState(24);
   const [newComment, setNewComment] = useState('');

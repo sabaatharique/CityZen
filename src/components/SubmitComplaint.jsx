@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import Navigation from './Navigation';
 import BottomNav from './BottomNav';
 import { Camera, MapPin, Loader, Sparkles, Upload, X } from 'lucide-react';
 
 export default function SubmitComplaint({ onLogout, darkMode, toggleDarkMode }) {
-  const navigate = useNavigate();
+  // navigation prop may be available when used inside RN navigation
   const [formData, setFormData] = useState({
     title: '',
     category: '',
@@ -64,12 +63,17 @@ export default function SubmitComplaint({ onLogout, darkMode, toggleDarkMode }) 
     }
     // Success message and redirect
     alert('Complaint submitted successfully!');
-    navigate('/feed');
+    if (typeof navigation !== 'undefined' && navigation?.navigate) {
+      navigation.navigate('Feed');
+      return;
+    }
+
+    if (typeof window !== 'undefined') window.location.href = '/feed';
   };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <Navigation onLogout={onLogout} darkMode={darkMode} toggleDarkMode={toggleDarkMode} />
+      <Navigation onLogout={onLogout} darkMode={darkMode} toggleDarkMode={toggleDarkMode} navigation={navigation} />
       
       <div className="max-w-4xl mx-auto px-4 py-8 pb-24 md:pb-8">
         <div className="mb-6">
@@ -241,7 +245,7 @@ export default function SubmitComplaint({ onLogout, darkMode, toggleDarkMode }) 
         </div>
       </div>
 
-      <BottomNav />
+      <BottomNav navigation={navigation} />
     </div>
   );
 }

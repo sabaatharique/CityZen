@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
 import { User, Mail, Lock, MapPin, Building2, ShieldCheck } from 'lucide-react';
 
 export default function Signup({ onSignup }) {
-  const navigate = useNavigate();
+  // navigation prop may be provided in native; otherwise fallback to window.location
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -30,13 +29,22 @@ export default function Signup({ onSignup }) {
   };
 
   const handleSubmit = (e) => {
-    e.preventDefault();
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
       alert('Passwords do not match!');
       return;
     }
     onSignup(formData.role);
-    navigate('/');
+    if (typeof navigation !== 'undefined' && navigation?.navigate) {
+      try {
+        navigation.navigate('HomeTab');
+      } catch (err) {
+        navigation.navigate('HomeScreen');
+      }
+      return;
+    }
+
+    if (typeof window !== 'undefined') window.location.href = '/';
   };
 
   const progress = Object.values(formData).filter(val => val !== '').length / 6 * 100;
@@ -232,9 +240,15 @@ export default function Signup({ onSignup }) {
             <div className="text-center pt-4 border-t border-gray-200 dark:border-gray-700">
               <p className="text-gray-600 dark:text-gray-400">
                 Already have an account?{' '}
-                <Link to="/login" className="text-[#1E88E5] hover:underline">
-                  Login
-                </Link>
+                  {typeof navigation !== 'undefined' && navigation?.navigate ? (
+                    <button type="button" onClick={() => navigation.navigate('Login')} className="text-[#1E88E5] hover:underline">
+                      Login
+                    </button>
+                  ) : (
+                    <a href="/login" className="text-[#1E88E5] hover:underline">
+                      Login
+                    </a>
+                  )}
               </p>
             </div>
           </form>

@@ -4,7 +4,7 @@ import Navigation from './Navigation';
 import BottomNav from './BottomNav';
 import { Search, Filter, MapPin, Heart, Calendar } from 'lucide-react';
 
-export default function ComplaintsFeed({ onLogout, darkMode, toggleDarkMode }) {
+export default function ComplaintsFeed({ onLogout, darkMode, toggleDarkMode, navigation }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedStatus, setSelectedStatus] = useState('All');
@@ -101,7 +101,7 @@ export default function ComplaintsFeed({ onLogout, darkMode, toggleDarkMode }) {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <Navigation onLogout={onLogout} darkMode={darkMode} toggleDarkMode={toggleDarkMode} />
+      <Navigation onLogout={onLogout} darkMode={darkMode} toggleDarkMode={toggleDarkMode} navigation={navigation} />
       
       <div className="max-w-7xl mx-auto px-4 py-8 pb-24 md:pb-8">
         <div className="mb-6">
@@ -186,9 +186,10 @@ export default function ComplaintsFeed({ onLogout, darkMode, toggleDarkMode }) {
         {/* Complaints Grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredComplaints.map((complaint) => (
-            <Link
+            <div
               key={complaint.id}
-              to={`/complaint/${complaint.id}`}
+              role="button"
+              onClick={() => (navigation?.navigate ? navigation.navigate('Complaint', { id: complaint.id }) : (window.location.href = `/complaint/${complaint.id}`))}
               className="bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-xl transition overflow-hidden border border-gray-200 dark:border-gray-700 group"
             >
               {/* Image */}
@@ -243,7 +244,7 @@ export default function ComplaintsFeed({ onLogout, darkMode, toggleDarkMode }) {
         )}
       </div>
 
-      <BottomNav />
+      <BottomNav navigation={navigation} />
     </div>
   );
 }
