@@ -2,3 +2,7 @@
 node_modules
 .expo/
 package-lock.json
+firebase-service-account.json
+backend/.env
+backend/node_modules
+backend/package-lock.json
