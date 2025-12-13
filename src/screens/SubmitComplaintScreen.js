@@ -1,15 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  View, Text, TextInput, TouchableOpacity, ScrollView, 
-  StyleSheet, ActivityIndicator, Image, Alert, Platform 
-} from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Image, Alert } from 'react-native';
 import Navigation from '../components/Navigation';
 import BottomNav from '../components/BottomNav';
-// FIXED: Added CheckCircle and Shield to imports
-import { 
-  Camera, Image as ImageIcon, MapPin, Sparkles, X, Trash2, 
-  ChevronDown, ChevronUp, RefreshCw, Clock, CheckCircle, Shield 
-} from 'lucide-react-native';
+
+import { Camera, Image as ImageIcon, MapPin, Sparkles, Trash2, ChevronDown, ChevronUp, RefreshCw, Clock, CheckCircle, Shield } from 'lucide-react-native';
+import * as ImagePicker from "expo-image-picker";
+import * as Location from 'expo-location';
+
 
 export default function SubmitComplaintScreen({ navigation, onLogout, darkMode, toggleDarkMode }) {
   // Form State
@@ -19,12 +16,14 @@ export default function SubmitComplaintScreen({ navigation, onLogout, darkMode, 
   const [image, setImage] = useState(null);
   const [privacyEnabled, setPrivacyEnabled] = useState(false);
   
+  const [location, setLocation] = useState({ latitude: null, longitude: null, fullAddress: null,});
+  const [locationTime, setLocationTime] = useState(null);
+  
   // Dropdown State
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   // System State
-  const [locating, setLocating] = useState(true); // Start true for auto-detect
-  const [locationData, setLocationData] = useState(null);
+  const [locating, setLocating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
 
@@ -33,40 +32,138 @@ export default function SubmitComplaintScreen({ navigation, onLogout, darkMode, 
     'Waste Management', 'Public Safety', 'Drainage', 'Others'
   ];
 
-  // Auto-Detect GPS on Mount
-  useEffect(() => {
-    handleGPSDetect();
-  }, []);
 
-  const handleGPSDetect = () => {
+  //Permissions
+  const requestLocationPermission = async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    return status === 'granted';
+  };
+
+  const requestCameraPermission = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      alert('Permission to access camera is required!');
+      return false;
+    }
+    return true;
+  };
+
+  //Location
+  // Convert DMS array to decimal degrees
+  const convertDMSToDecimal = (dms, ref) => {
+    if (!dms) return null;
+    const [deg, min, sec] = dms;
+    let dec = deg + min / 60 + sec / 3600;
+
+    if (ref === 'S' || ref === 'W') dec = -dec;
+    return dec;
+  };
+
+  const extractLocationFromExif = (exif) => {
+    if (!exif) return null;
+
+    const latitude = exif.GPSLatitude
+      ? Array.isArray(exif.GPSLatitude)
+        ? convertDMSToDecimal(exif.GPSLatitude, exif.GPSLatitudeRef)
+        : exif.GPSLatitudeRef === 'S' ? -exif.GPSLatitude : exif.GPSLatitude
+      : null;
+
+    const longitude = exif.GPSLongitude
+      ? Array.isArray(exif.GPSLongitude)
+        ? convertDMSToDecimal(exif.GPSLongitude, exif.GPSLongitudeRef)
+        : exif.GPSLongitudeRef === 'W' ? -exif.GPSLongitude : exif.GPSLongitude
+      : null;
+
+    if (latitude !== null && longitude !== null) return { latitude, longitude };
+    return null;
+};
+
+const updateLocationWithAddress = async (latitude, longitude) => {
+  setLocating(true);
+
+  try {
+    const [addr] = await Location.reverseGeocodeAsync({ latitude, longitude });
+
+    const areaName = addr.name || addr.street || addr.subregion || addr.city || 'Unknown area';
+    const district = addr.district || addr.city || '';
+    const region = addr.region || '';
+
+    setLocation({
+      latitude,
+      longitude,
+      areaName,
+      district,
+      region,
+      fullAddress: `${areaName}, ${district}, ${region}`,
+    });
+
+    setLocationTime(new Date().toLocaleString());
+  } catch (err) {
+    console.warn('Reverse geocode failed', err);
+    setLocation({
+      latitude,
+      longitude,
+      fullAddress: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
+    });
+    setLocationTime(new Date().toLocaleString());
+  } finally {
+    setLocating(false);
+  }
+};
+
+  
+  //Camera
+  const handleImagePick = async () => {
+    const hasPermission = await requestCameraPermission();
+    const locPerm = await requestLocationPermission();
+    if (!locPerm || !hasPermission) return;
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      allowsEditing: false,
+      quality: 1,
+      exif: true,
+    });
+
+    // Camera
+    if (result.assets?.length > 0) {
+      const asset = result.assets[0];
+      setImage(asset.uri);
+
+      const exifLocation = extractLocationFromExif(asset.exif);
+      if (exifLocation) {
+        await updateLocationWithAddress(exifLocation.latitude, exifLocation.longitude);
+        return;
+      }
+
+      const gps = await Location.getCurrentPositionAsync({});
+      await updateLocationWithAddress(gps.coords.latitude, gps.coords.longitude);
+    }
+  };
+
+  const handleGPSDetect = async () => {
     setLocating(true);
-    setLocationData(null);
-    // Simulate GPS Delay
-    setTimeout(() => {
+    try {
+      const hasLocationPerm = await requestLocationPermission();
+      if (!hasLocationPerm) throw new Error('Location permission denied');
+
+      const gps = await Location.getCurrentPositionAsync({});
+      await updateLocationWithAddress(gps.coords.latitude, gps.coords.longitude);
+    } catch (err) {
+      Alert.alert('Error', 'Unable to detect location.');
+    } finally {
       setLocating(false);
-      setLocationData({
-        ward: 'Ward 3 - South District',
-        coords: '23.8103° N, 90.4125° E',
-        time: new Date().toLocaleString()
-      });
-    }, 2500);
+    }
   };
 
-  const handleImagePick = (source) => {
-    const mockImage = source === 'camera' 
-      ? 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?w=800&q=80' 
-      : 'https://images.unsplash.com/photo-1605600659908-0ef719419d41?w=800&q=80';
-    
-    setImage(mockImage);
-    setErrors(prev => ({ ...prev, image: null }));
-  };
+
 
   const handleSubmit = () => {
     const newErrors = {};
     if (!image) newErrors.image = 'Evidence photo is mandatory.';
     if (!title) newErrors.title = 'Title is required.';
     if (!selectedCategory) newErrors.category = 'Category is required.';
-    if (!locationData) newErrors.location = 'GPS location is required.';
+    if (!location.latitude || !location.longitude) newErrors.location = 'GPS location is required.';
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -102,14 +199,11 @@ export default function SubmitComplaintScreen({ navigation, onLogout, darkMode, 
                </TouchableOpacity>
              </View>
            ) : (
+
              <View style={styles.uploadRow}>
-               <TouchableOpacity onPress={() => handleImagePick('camera')} style={[styles.uploadBtn, errors.image && styles.errorBorder]}>
+               <TouchableOpacity onPress={() => handleImagePick()} style={[styles.uploadBtn, errors.image && styles.errorBorder]}>
                  <Camera size={24} color="#1E88E5" />
                  <Text style={styles.uploadText}>Camera</Text>
-               </TouchableOpacity>
-               <TouchableOpacity onPress={() => handleImagePick('gallery')} style={[styles.uploadBtn, errors.image && styles.errorBorder]}>
-                 <ImageIcon size={24} color="#1E88E5" />
-                 <Text style={styles.uploadText}>Gallery</Text>
                </TouchableOpacity>
              </View>
            )}
@@ -168,42 +262,64 @@ export default function SubmitComplaintScreen({ navigation, onLogout, darkMode, 
              onChangeText={setDescription}
            />
 
-           {/* 5. Location (Auto-Detected & Read-Only) */}
-           <View style={styles.locationSection}>
-             <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8}}>
-               <Text style={[styles.label, darkMode && styles.textWhite, { marginBottom: 0 }]}>Location Details <Text style={styles.req}>*</Text></Text>
-               <TouchableOpacity onPress={handleGPSDetect} style={styles.refreshBtn}>
-                 <RefreshCw size={14} color="#1E88E5" />
-                 <Text style={styles.refreshText}>Refresh GPS</Text>
-               </TouchableOpacity>
-             </View>
+           {/* 5. Location */}
+            <View style={styles.locationSection}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <Text style={[styles.label, darkMode && styles.textWhite, { marginBottom: 0 }]}>
+                  Location Details <Text style={styles.req}>*</Text>
+                </Text>
 
-             {locating ? (
-               <View style={[styles.readOnlyBox, darkMode && styles.readOnlyBoxDark, { alignItems: 'center', justifyContent: 'center' }]}>
-                 <ActivityIndicator color="#1E88E5" />
-                 <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 8 }}>Pinpointing location...</Text>
-               </View>
-             ) : (
-               <>
-                 <View style={[styles.readOnlyBox, darkMode && styles.readOnlyBoxDark]}>
-                   <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 4}}>
-                     <MapPin size={16} color="#1E88E5" />
-                     <Text style={[styles.readOnlyLabel, darkMode && styles.textGray]}>Detected Ward/Area</Text>
-                   </View>
-                   <Text style={[styles.readOnlyValue, darkMode && styles.textWhite]}>{locationData?.ward}</Text>
-                   <Text style={{fontSize: 10, color: '#9CA3AF', marginTop: 2}}>{locationData?.coords}</Text>
-                 </View>
+                <TouchableOpacity onPress={handleGPSDetect} style={styles.refreshBtn}>
+                  <RefreshCw size={14} color="#1E88E5" />
+                  <Text style={styles.refreshText}>Refresh GPS</Text>
+                </TouchableOpacity>
+              </View>
 
-                 <View style={[styles.readOnlyBox, darkMode && styles.readOnlyBoxDark, { marginTop: 8 }]}>
-                   <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 4}}>
-                     <Clock size={16} color="#1E88E5" />
-                     <Text style={[styles.readOnlyLabel, darkMode && styles.textGray]}>Timestamp</Text>
-                   </View>
-                   <Text style={[styles.readOnlyValue, darkMode && styles.textWhite]}>{locationData?.time}</Text>
-                 </View>
-               </>
-             )}
-           </View>
+              {locating ? (
+                <View style={[styles.readOnlyBox, darkMode && styles.readOnlyBoxDark, { alignItems: 'center', justifyContent: 'center' }]}>
+                  <ActivityIndicator color="#1E88E5" />
+                  <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 8 }}>
+                    Detecting location...
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  {/* Location Coordinates */}
+                  <View style={[styles.readOnlyBox, darkMode && styles.readOnlyBoxDark]}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                      <MapPin size={16} color="#1E88E5" />
+                      <Text style={[styles.readOnlyLabel, darkMode && styles.textGray]}>
+                        Detected Coordinates
+                      </Text>
+                    </View>
+
+                    <Text style={[styles.readOnlyValue, darkMode && styles.textWhite]}>
+                      {location.fullAddress
+                        ? location.fullAddress
+                        : location.latitude && location.longitude
+                          ? `${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`
+                          : 'No location detected'}
+                    </Text>
+
+                  </View>
+
+                  {/* Timestamp */}
+                  <View style={[styles.readOnlyBox, darkMode && styles.readOnlyBoxDark, { marginTop: 8 }]}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                      <Clock size={16} color="#1E88E5" />
+                      <Text style={[styles.readOnlyLabel, darkMode && styles.textGray]}>
+                        Timestamp
+                      </Text>
+                    </View>
+
+                    <Text style={[styles.readOnlyValue, darkMode && styles.textWhite]}>
+                      {locationTime || '—'}
+                    </Text>
+                  </View>
+                </>
+              )}
+            </View>
+
 
            {/* 6. Privacy & Submit */}
            <TouchableOpacity onPress={() => setPrivacyEnabled(!privacyEnabled)} style={styles.privacyRow}>
