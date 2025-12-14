@@ -6,6 +6,7 @@ import BottomNav from '../components/BottomNav';
 import { Camera, Image as ImageIcon, MapPin, Sparkles, Trash2, ChevronDown, ChevronUp, RefreshCw, Clock, CheckCircle, Shield } from 'lucide-react-native';
 import * as ImagePicker from "expo-image-picker";
 import * as Location from 'expo-location';
+import * as FileSystem from 'expo-file-system';
 import axios from 'axios';
 import { auth } from '../config/firebase';
 
@@ -174,60 +175,69 @@ const updateLocationWithAddress = async (latitude, longitude) => {
 
 
 
-  const handleSubmit = async () => {
-    const newErrors = {};
-    if (!image) newErrors.image = 'Evidence photo is mandatory.';
-    if (!title) newErrors.title = 'Title is required.';
-    if (!selectedCategory) newErrors.category = 'Category is required.';
-    if (!location.latitude || !location.longitude) newErrors.location = 'GPS location is required.';
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      Alert.alert('Missing Info', 'Please fill in all required fields.');
-      return;
-    }
-
-    setIsSubmitting(true);
-    setErrors({});
-
-    const complaintData = {
-      title,
-      description,
-      latitude: location.latitude,
-      longitude: location.longitude,
-      citizenUid: auth.currentUser?.uid,
-      categoryId: selectedCategory.id, // Changed to selectedCategory.id
-    };
-
-    if (!complaintData.citizenUid) {
-      Alert.alert('Error', 'Could not identify user. Please log in again.');
-      setIsSubmitting(false);
-      return;
-    }
-    
-    try {
-      const response = await axios.post(`${API_URL}/api/complaints`, complaintData, {
-        headers: {
-          'Content-Type': 'application/json',
-          'bypass-tunnel-reminder': 'true'
-        }
-      });
-
-      if (response.status === 201) {
-        Alert.alert("Success", "Complaint Submitted Successfully!");
-        navigation.navigate('Feed');
-      } else {
-        Alert.alert('Error', 'Failed to submit complaint. Please try again.');
+      const handleSubmit = async () => {
+      const newErrors = {};
+      if (!image) newErrors.image = 'Evidence photo is mandatory.';
+      if (!title) newErrors.title = 'Title is required.';
+      if (!selectedCategory) newErrors.category = 'Category is required.';
+      if (!location.latitude || !location.longitude) newErrors.location = 'GPS location is required.';
+  
+      if (Object.keys(newErrors).length > 0) {
+        setErrors(newErrors);
+        Alert.alert('Missing Info', 'Please fill in all required fields.');
+        return;
       }
-    } catch (error) {
-      console.error('Submit Complaint Error:', error);
-      const message = error.response?.data?.message || 'An unexpected error occurred.';
-      Alert.alert('Submission Failed', message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
+  
+      setIsSubmitting(true);
+      setErrors({});
+  
+      const formData = new FormData();
+      formData.append('title', title);
+      formData.append('description', description);
+      formData.append('latitude', location.latitude);
+      formData.append('longitude', location.longitude);
+      formData.append('citizenUid', auth.currentUser?.uid);
+      formData.append('categoryId', selectedCategory.id);
+  
+      if (!auth.currentUser?.uid) {
+        Alert.alert('Error', 'Could not identify user. Please log in again.');
+        setIsSubmitting(false);
+        return;
+      }
+  
+      if (image) {
+        const filename = image.split('/').pop();
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : `image`;
+        formData.append('image', {
+          uri: image,
+          name: filename,
+          type: type,
+        });
+      }
+      
+      try {
+        const response = await axios.post(`${API_URL}/api/complaints`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data', // Explicitly set content type
+            'bypass-tunnel-reminder': 'true'
+          }
+        });
+  
+        if (response.status === 201) {
+          Alert.alert("Success", "Complaint Submitted Successfully!");
+          navigation.navigate('Feed');
+        } else {
+          Alert.alert('Error', 'Failed to submit complaint. Please try again.');
+        }
+      } catch (error) {
+        console.error('Submit Complaint Error:', error);
+        const message = error.response?.data?.message || 'An unexpected error occurred.';
+        Alert.alert('Submission Failed', message);
+      } finally {
+        setIsSubmitting(false);
+      }
+    };
   return (
     <View style={[styles.container, darkMode && styles.darkContainer]}>
       <Navigation onLogout={onLogout} darkMode={darkMode} toggleDarkMode={toggleDarkMode} navigation={navigation} />

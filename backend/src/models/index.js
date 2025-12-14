@@ -5,6 +5,8 @@ const Authority = require('./Authority');
 const Admin = require('./Admin');
 const Complaint = require('./Complaint');
 const Category = require('./Category');
+const AuthorityCompany = require('./AuthorityCompany');
+const ComplaintImages = require('./ComplaintImages');
 
 // --- Define Associations (One-to-One) ---
 
@@ -46,6 +48,17 @@ Complaint.belongsTo(Category, {
   foreignKey: 'categoryId'
 });
 
+// A Complaint has many ComplaintImages
+Complaint.hasMany(ComplaintImages, {
+  foreignKey: 'complaintId',
+  as: 'images' // Alias for when fetching associated images
+});
+
+// A ComplaintImage belongs to one Complaint
+ComplaintImages.belongsTo(Complaint, {
+  foreignKey: 'complaintId'
+});
+
 
 module.exports = {
   sequelize,
@@ -54,5 +67,7 @@ module.exports = {
   Authority,
   Admin,
   Complaint,
+  ComplaintImages,
+  AuthorityCompany,
   Category
 };
