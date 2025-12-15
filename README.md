@@ -6,6 +6,19 @@ npm install //first time or if new package added
 cd frontend
 npm install //first time or if new package added
 
+cd ai-service
+python -m venv venv //if not there
+ls venv\Scripts //check
+.\venv\Scripts\Activate.ps1
+pip install fastapi uvicorn
+pip install ultralytics //might need other pkg, u will be informed
+uvicorn ai_service:app --host 0.0.0.0 --port 8000 ///1st time
+
+//terminal 4
+cd ai-service
+venv\Scripts\Activate.ps1
+uvicorn ai_service:app --host 0.0.0.0 --port 8000
+
 3.
 terminal 1
 cd backend
