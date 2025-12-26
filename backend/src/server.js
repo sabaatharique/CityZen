@@ -1,6 +1,6 @@
-// Load env from project root (.env)
 const path = require('path');
 require('dotenv').config({ path: path.join(process.cwd(), '.env') });
+// Load env from project root (.env)
 
 console.log('Loaded DATABASE_URL:', process.env.DATABASE_URL || '(not found)');
 
@@ -13,6 +13,7 @@ const cors = require('cors');
 const { sequelize, Category, AuthorityCompany, AuthorityCompanyCategory } = require('./models'); 
 const logger = require('./utils/logger');
 const env = require('./config/env');
+const supabase = require('./config/supabase');
 // REMOVED: const sequelize = require('./config/database'); // Redundant after CRITICAL CHANGE 1
 // REMOVED: const initFirebase = require('./config/firebase'); // Not needed for this client-auth flow
 

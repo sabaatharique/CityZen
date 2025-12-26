@@ -11,6 +11,7 @@ import axios from 'axios';
 import { auth } from '../config/firebase';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
+const GEMINI_API_URL = process.env.EXPO_PUBLIC_GEMINI_API_URL;
 
 
 export default function SubmitComplaintScreen({ navigation, onLogout, darkMode, toggleDarkMode, route }) {
@@ -52,22 +53,16 @@ export default function SubmitComplaintScreen({ navigation, onLogout, darkMode, 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
 
-  useEffect(() => {
-    if (!aiResult) return;
+  const [recommendedAuthority, setRecommendedAuthority] = useState(null);
+  const [loadingRecommendation, setLoadingRecommendation] = useState(false);
 
-    console.log("AI RESULT RECEIVED:", aiResult);
 
-    setTitle("Pothole detected");
-    setDescription(
-      `AI detected a pothole with ${aiResult.confidence}% confidence.`
-    );
-
-  }, [aiResult]);
 
   useEffect(() => {
     const fetchCategories = async () => {
       try {
         const response = await axios.get(`${API_URL}/api/complaints/categories`, {
+          timeout: 30000, // 30-second timeout
           headers: {
             'bypass-tunnel-reminder': 'true'
           }
@@ -92,6 +87,68 @@ export default function SubmitComplaintScreen({ navigation, onLogout, darkMode, 
       }
     }
   }, [categories, aiResult]);
+
+  useEffect(() => {
+    const fetchRecommendedAuthority = async () => {
+      if (selectedCategory && location.latitude && location.longitude && description) {
+        setLoadingRecommendation(true);
+        try {
+          const response = await axios.get(`${API_URL}/api/complaints/recommend-authorities`, {
+            params: {
+              category: selectedCategory.name,
+              description,
+              latitude: location.latitude,
+              longitude: location.longitude,
+            },
+            headers: {
+              'bypass-tunnel-reminder': 'true'
+            }
+          });
+          setRecommendedAuthority(response.data);
+        } catch (error) {
+          console.error('Error fetching recommended authority:', error);
+        } finally {
+          setLoadingRecommendation(false);
+        }
+      }
+    };
+
+    // Debounce the fetch
+    const handler = setTimeout(() => {
+        fetchRecommendedAuthority();
+    }, 1000); // 1 second debounce
+
+    return () => {
+        clearTimeout(handler);
+    };
+  }, [selectedCategory, location, description]);
+
+useEffect(() => {
+    const generateComplaintText = async () => {
+      if (aiResult && location.latitude && location.longitude) {
+        try {
+          const geminiResponse = await axios.post(`${GEMINI_API_URL}/generate_complaint_text`, {
+            category: aiResult.label,
+            confidence: aiResult.confidence,
+            latitude: location.latitude,
+            longitude: location.longitude,
+          });
+
+          if (geminiResponse.data.title) {
+            setTitle(geminiResponse.data.title);
+          }
+          if (geminiResponse.data.description) {
+            setDescription(geminiResponse.data.description);
+          }
+        } catch (geminiError) {
+          console.error("Error generating complaint text with Gemini:", geminiError);
+          Alert.alert("Generation Failed", "Could not generate complaint details. Please check your connection or try again.");
+        }
+      }
+    };
+
+    generateComplaintText();
+  }, [aiResult, location]);
 
   //Permissions
   const requestLocationPermission = async () => {
@@ -199,6 +256,14 @@ const updateLocationWithAddress = async (latitude, longitude) => {
 
       const data = await res.json();
       setAiResult(data);
+
+      // Set a temporary title/description based on detection
+      /*if (data.label && data.confidence) {
+          setTitle(`${data.label} Detected`);
+          setDescription(
+              `AI detected a ${data.label} with ${data.confidence}% confidence.`
+          );
+      }*/
     } catch (err) {
       Alert.alert("AI Error", "Failed to analyze image");
     } finally {
@@ -441,17 +506,7 @@ const updateLocationWithAddress = async (latitude, longitude) => {
           )}
 
 
-           {/* 2. Title */}
-           <Text style={[styles.label, darkMode && styles.textWhite]}>Title <Text style={styles.req}>*</Text></Text>
-           <TextInput 
-             style={[styles.input, darkMode && styles.inputDark, errors.title && styles.errorBorder]} 
-             placeholder="e.g. Broken Street Light" 
-             placeholderTextColor="#9CA3AF"
-             value={title}
-             onChangeText={setTitle}
-           />
-
-           {/* 3. Category Dropdown */}
+           {/* 2. Category Dropdown */}
            <Text style={[styles.label, darkMode && styles.textWhite]}>Category <Text style={styles.req}>*</Text></Text>
            <TouchableOpacity 
              onPress={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -477,6 +532,16 @@ const updateLocationWithAddress = async (latitude, longitude) => {
              </View>
            )}
 
+           {/* 2. Title */}
+           <Text style={[styles.label, darkMode && styles.textWhite]}>Title <Text style={styles.req}>*</Text></Text>
+           <TextInput 
+             style={[styles.input, darkMode && styles.inputDark, errors.title && styles.errorBorder]} 
+             placeholder="e.g. Broken Street Light" 
+             placeholderTextColor="#9CA3AF"
+             value={title}
+             onChangeText={setTitle}
+           />
+
            {/* 4. Description */}
            <Text style={[styles.label, darkMode && styles.textWhite, { marginTop: 12 }]}>Description</Text>
            <TextInput 
@@ -487,6 +552,27 @@ const updateLocationWithAddress = async (latitude, longitude) => {
              value={description}
              onChangeText={setDescription}
            />
+
+           {/* AI Recommended Authority */}
+           {loadingRecommendation && <ActivityIndicator style={{ marginVertical: 16 }} color="#1E88E5" />}
+           {recommendedAuthority && (
+             <View style={{ marginTop: 16 }}>
+               <Text style={[styles.label, darkMode && styles.textWhite]}>AI Recommended Authority</Text>
+               <View style={[styles.card, darkMode && styles.cardDark, { padding: 16 }]}>
+                 <Text style={[styles.dropdownText, darkMode && styles.textWhite, { fontWeight: 'bold' }]}>
+                   {recommendedAuthority.authorityName}
+                 </Text>
+                 <Text style={[styles.readOnlyLabel, darkMode && styles.textGray, { marginTop: 4 }]}>
+                   {recommendedAuthority.reason}
+                 </Text>
+                 <Text style={[styles.readOnlyLabel, darkMode && styles.textGray, { marginTop: 4, fontStyle: 'italic' }]}>
+                   Confidence: {(recommendedAuthority.confidence * 100).toFixed(0)}%
+                 </Text>
+               </View>
+             </View>
+           )}
+
+           
 
            {/* 5. Location */}
             <View style={styles.locationSection}>
@@ -584,7 +670,7 @@ const styles = StyleSheet.create({
   req: { color: '#EF4444' },
   card: { backgroundColor: 'white', padding: 20, borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB' },
   cardDark: { backgroundColor: '#1F2937', borderColor: '#374151' },
-  label: { marginBottom: 8, fontWeight: '600', color: '#374151', fontSize: 14 },
+  label: { marginBottom: 12, fontWeight: '600', color: '#374151', fontSize: 14 },
   
   // Image
   uploadRow: { flexDirection: 'row', gap: 12, marginBottom: 8 },
@@ -609,8 +695,8 @@ const styles = StyleSheet.create({
   errorText: { color: '#EF4444', fontSize: 12, marginBottom: 12, marginTop: -8 },
 
   // Dropdown
-  dropdownHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, marginBottom: 4 },
-  dropdownText: { fontSize: 16, color: '#1F2937' },
+  dropdownHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, marginBottom: 16 },
+  dropdownText: { fontSize: 16, color: '#1F2937', },
   placeholderText: { color: '#9CA3AF' },
   dropdownList: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, marginBottom: 16, overflow: 'hidden' },
   dropdownItem: { padding: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', backgroundColor: '#F9FAFB' },
