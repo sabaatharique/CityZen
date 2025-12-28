@@ -44,29 +44,7 @@ npm run dev
 
 ---
 
-### Terminal 2 – Expose Backend API (LocalTunnel)
-
-Expose the backend API running on port **3000**:
-
-```powershell
-lt --port 3000 --subdomain cityzen-api
-```
-
-**Notes:**
-
-* Keep this terminal running while the app is in use
-* A tunnel URL will be generated
-* Open the link once and **enter the tunnel password** if prompted
-
-Copy the generated URL and paste it into:
-
-```
-frontend\.env  →  EXPO_PUBLIC_API_URL
-```
-
----
-
-### Terminal 3 – Frontend (Expo)
+### Terminal 2 – Frontend (Expo)
 
 Navigate to the frontend folder:
 
@@ -101,7 +79,7 @@ After Expo starts:
 
 ---
 
-### Terminal 4 – AI Detection Service (FastAPI)
+### Terminal 3 – AI Detection Service (FastAPI)
 
 Navigate to the AI service folder:
 
@@ -151,7 +129,7 @@ uvicorn ai_service:app --host 0.0.0.0 --port 8000
 
 ---
 
-### Terminal 5 – AI Recommendation Service (OpenRouter / FastAPI)
+### Terminal 4 – AI Recommendation Service (OpenRouter / FastAPI)
 
 Navigate to the OpenRouter service folder:
 
@@ -209,15 +187,12 @@ uvicorn openrouter_service:app --host 0.0.0.0 --port 8001
 You must add **your local IP address** to the following files:
 
 ```
-frontend\src\services\api.js
-  → API_BASE_URL
-
-frontend\src\screens\SubmitComplaintScreen.js
-  → runAiDetection
-
 frontend\.env
-  → EXPO_PUBLIC_OPENROUTER_API_URL
+  → EXPO_PUBLIC_API_URL=http://IP:3000
+  →EXPO_PUBLIC_OPENROUTER_API_URL=http://IP:8001
+  →EXPO_PUBLIC_AI_SERVICE_URL=http://IP:8000
 ```
+---
 
 ### How to get your IP address
 
@@ -243,7 +218,7 @@ The following folders contain `.env` files that must be configured correctly:
 
 * `frontend/.env`
 * `backend/.env`
-* `gemini-service/.env`
+* `openrouter-service/.env`
 
 Ensure all required URLs, keys, and ports are set before running the app.
 
@@ -263,7 +238,6 @@ Ensure all required URLs, keys, and ports are set before running the app.
 | Terminal   | Purpose                             |
 | ---------- | ----------------------------------- |
 | Terminal 1 | Backend server                      |
-| Terminal 2 | LocalTunnel API exposure            |
-| Terminal 3 | Frontend (Expo)                     |
-| Terminal 4 | AI detection service (FastAPI)      |
-| Terminal 5 | AI recommendation service (FastAPI) |
+| Terminal 2 | Frontend (Expo)                     |
+| Terminal 3 | AI detection service (FastAPI)      |
+| Terminal 4 | AI recommendation service (FastAPI) |
