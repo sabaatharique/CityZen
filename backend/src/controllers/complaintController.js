@@ -1,7 +1,17 @@
-const { Complaint, Category, ComplaintImages, AuthorityCompany, sequelize } = require('../models');
-const supabase = require('../config/supabase'); // Import Supabase client
+const {
+  Complaint,
+  Category,
+  ComplaintImages,
+  AuthorityCompany,
+  sequelize
+} = require('../models');
+
+const supabase = require('../config/supabase');
 const axios = require('axios');
 
+/* =========================
+   CREATE COMPLAINT
+========================= */
 exports.createComplaint = async (req, res) => {
   const t = await sequelize.transaction();
   try {
@@ -14,93 +24,106 @@ exports.createComplaint = async (req, res) => {
       categoryId,
     } = req.body;
 
-    const imageFiles = req.files; // Multer makes the uploaded files available here as an array
+    const imageFiles = req.files;
 
-    if (!title || !latitude || !longitude || !citizenUid || !categoryId || !imageFiles || imageFiles.length === 0) {
-      return res.status(400).json({ message: 'Missing required complaint fields or image data.' });
+    if (
+      !title ||
+      !latitude ||
+      !longitude ||
+      !citizenUid ||
+      !categoryId ||
+      !imageFiles ||
+      imageFiles.length === 0
+    ) {
+      return res
+        .status(400)
+        .json({ message: 'Missing required complaint fields or image data.' });
     }
 
-    const complaint = await Complaint.create({
-      title,
-      description,
-      latitude,
-      longitude,
-      citizenUid,
-      categoryId: categoryId,
-      currentStatus: 'pending'
-    }, { transaction: t });
+    const complaint = await Complaint.create(
+      {
+        title,
+        description,
+        latitude,
+        longitude,
+        citizenUid,
+        categoryId,
+        currentStatus: 'pending',
+      },
+      { transaction: t }
+    );
 
-    // Supabase Storage integration for multiple images
-    const bucketName = 'cityzen-media'; // TODO: Replace with your actual Supabase bucket name
+    const bucketName = 'cityzen-media';
 
     for (const imageFile of imageFiles) {
       const filePath = `complaint_images/${complaint.id}_${Date.now()}_${imageFile.originalname}`;
 
-      const { data, error } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from(bucketName)
         .upload(filePath, imageFile.buffer, {
           contentType: imageFile.mimetype,
           upsert: false,
         });
 
-      if (error) {
-        throw new Error(`Supabase upload failed for ${imageFile.originalname}: ${error.message}`);
+      if (uploadError) {
+        throw new Error(`Supabase upload failed: ${uploadError.message}`);
       }
 
-      // Get public URL
-      const { data: publicUrlData, error: publicUrlError } = supabase.storage
+      const { data: publicUrlData } = supabase.storage
         .from(bucketName)
         .getPublicUrl(filePath);
 
-      if (publicUrlError) {
-        throw new Error(`Supabase getPublicUrl failed for ${imageFile.originalname}: ${publicUrlError.message}`);
-      }
-      if (!publicUrlData || !publicUrlData.publicUrl) {
-        throw new Error(`Supabase getPublicUrl returned invalid data for ${imageFile.originalname}: ${JSON.stringify(publicUrlData)}`);
+      if (!publicUrlData?.publicUrl) {
+        throw new Error('Failed to retrieve public URL.');
       }
 
-      const imageUrl = publicUrlData.publicUrl;
-
-      // Ensure complaint.id is valid before creating ComplaintImages
-      if (!complaint.id) {
-        throw new Error('Complaint ID is null after creation, cannot link image.');
-      }
-
-      await ComplaintImages.create({
-        complaintId: complaint.id, // Matches new model casing
-        imageURL: imageUrl,        // Matches new model casing
-      }, { transaction: t });
+      await ComplaintImages.create(
+        {
+          complaintId: complaint.id,
+          imageURL: publicUrlData.publicUrl,
+        },
+        { transaction: t }
+      );
     }
 
     await t.commit();
-    res.status(201).json({ message: 'Complaint created successfully', complaint });
-
+    res.status(201).json({
+      message: 'Complaint created successfully',
+      complaint,
+    });
   } catch (error) {
     await t.rollback();
     console.error('Complaint Creation Error:', error.message);
-    res.status(500).json({ message: `Complaint creation failed: ${error.message}` });
+    res.status(500).json({
+      message: `Complaint creation failed: ${error.message}`,
+    });
   }
 };
 
+/* =========================
+   GET CATEGORIES
+========================= */
 exports.getCategories = async (req, res) => {
   try {
-    console.time('getCategories-db');
     const categories = await Category.findAll({
-      attributes: ['id', 'name', 'description']
+      attributes: ['id', 'name', 'description'],
     });
-    console.timeEnd('getCategories-db');
     res.json(categories);
   } catch (error) {
     console.error('Get Categories Error:', error.message);
-    res.status(500).json({ message: 'Server error while fetching categories.' });
+    res.status(500).json({
+      message: 'Server error while fetching categories.',
+    });
   }
 };
 
-// Get all complaints (with optional filtering)
+/* =========================
+   GET ALL COMPLAINTS
+========================= */
 exports.getAllComplaints = async (req, res) => {
   try {
     const { status, categoryId, page = 1, limit = 10 } = req.query;
-    
+
     const where = {};
     if (status) where.currentStatus = status;
     if (categoryId) where.categoryId = categoryId;
@@ -110,19 +133,16 @@ exports.getAllComplaints = async (req, res) => {
     const { count, rows } = await Complaint.findAndCountAll({
       where,
       include: [
-        {
-          model: Category,
-          attributes: ['id', 'name']
-        },
+        { model: Category, attributes: ['id', 'name'] },
         {
           model: ComplaintImages,
           as: 'images',
-          attributes: ['id', 'imageURL']
-        }
+          attributes: ['id', 'imageURL'],
+        },
       ],
       order: [['createdAt', 'DESC']],
       limit: parseInt(limit),
-      offset: parseInt(offset)
+      offset: parseInt(offset),
     });
 
     res.json({
@@ -131,16 +151,20 @@ exports.getAllComplaints = async (req, res) => {
         total: count,
         page: parseInt(page),
         limit: parseInt(limit),
-        pages: Math.ceil(count / limit)
-      }
+        pages: Math.ceil(count / limit),
+      },
     });
   } catch (error) {
     console.error('Get All Complaints Error:', error.message);
-    res.status(500).json({ message: 'Server error while fetching complaints.' });
+    res.status(500).json({
+      message: 'Server error while fetching complaints.',
+    });
   }
 };
 
-// Get complaints by citizen ID
+/* =========================
+   GET COMPLAINTS BY CITIZEN
+========================= */
 exports.getComplaintsByCitizen = async (req, res) => {
   try {
     const { citizenUid } = req.params;
@@ -154,19 +178,16 @@ exports.getComplaintsByCitizen = async (req, res) => {
     const { count, rows } = await Complaint.findAndCountAll({
       where,
       include: [
-        {
-          model: Category,
-          attributes: ['id', 'name']
-        },
+        { model: Category, attributes: ['id', 'name'] },
         {
           model: ComplaintImages,
           as: 'images',
-          attributes: ['id', 'imageURL']
-        }
+          attributes: ['id', 'imageURL'],
+        },
       ],
       order: [['createdAt', 'DESC']],
       limit: parseInt(limit),
-      offset: parseInt(offset)
+      offset: parseInt(offset),
     });
 
     res.json({
@@ -175,32 +196,33 @@ exports.getComplaintsByCitizen = async (req, res) => {
         total: count,
         page: parseInt(page),
         limit: parseInt(limit),
-        pages: Math.ceil(count / limit)
-      }
+        pages: Math.ceil(count / limit),
+      },
     });
   } catch (error) {
     console.error('Get Complaints by Citizen Error:', error.message);
-    res.status(500).json({ message: 'Server error while fetching citizen complaints.' });
+    res.status(500).json({
+      message: 'Server error while fetching citizen complaints.',
+    });
   }
 };
 
-// Get complaint by ID
+/* =========================
+   GET COMPLAINT BY ID
+========================= */
 exports.getComplaintById = async (req, res) => {
   try {
     const { id } = req.params;
 
     const complaint = await Complaint.findByPk(id, {
       include: [
-        {
-          model: Category,
-          attributes: ['id', 'name', 'description']
-        },
+        { model: Category, attributes: ['id', 'name', 'description'] },
         {
           model: ComplaintImages,
           as: 'images',
-          attributes: ['id', 'imageURL']
-        }
-      ]
+          attributes: ['id', 'imageURL'],
+        },
+      ],
     });
 
     if (!complaint) {
@@ -210,23 +232,32 @@ exports.getComplaintById = async (req, res) => {
     res.json(complaint);
   } catch (error) {
     console.error('Get Complaint by ID Error:', error.message);
-    res.status(500).json({ message: 'Server error while fetching complaint.' });
+    res.status(500).json({
+      message: 'Server error while fetching complaint.',
+    });
   }
 };
 
-// Update complaint status (for authorities/admins)
+/* =========================
+   UPDATE COMPLAINT STATUS
+========================= */
 exports.updateComplaintStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { currentStatus, statusNotes } = req.body;
 
-    if (!currentStatus) {
-      return res.status(400).json({ message: 'Status is required.' });
-    }
+    const validStatuses = [
+      'pending',
+      'in_progress',
+      'resolved',
+      'closed',
+      'rejected',
+    ];
 
-    const validStatuses = ['pending', 'in_progress', 'resolved', 'closed', 'rejected'];
     if (!validStatuses.includes(currentStatus)) {
-      return res.status(400).json({ message: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+      return res.status(400).json({
+        message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
+      });
     }
 
     const complaint = await Complaint.findByPk(id);
@@ -237,17 +268,23 @@ exports.updateComplaintStatus = async (req, res) => {
     await complaint.update({
       currentStatus,
       statusNotes: statusNotes || complaint.statusNotes,
-      updatedAt: new Date()
     });
 
-    res.json({ message: 'Complaint status updated successfully', complaint });
+    res.json({
+      message: 'Complaint status updated successfully',
+      complaint,
+    });
   } catch (error) {
     console.error('Update Complaint Status Error:', error.message);
-    res.status(500).json({ message: 'Server error while updating complaint status.' });
+    res.status(500).json({
+      message: 'Server error while updating complaint status.',
+    });
   }
 };
 
-// Delete complaint (only by creator or admin)
+/* =========================
+   DELETE COMPLAINT
+========================= */
 exports.deleteComplaint = async (req, res) => {
   const t = await sequelize.transaction();
   try {
@@ -259,30 +296,15 @@ exports.deleteComplaint = async (req, res) => {
       return res.status(404).json({ message: 'Complaint not found.' });
     }
 
-    // Verify ownership or admin privilege (should be enforced by middleware in production)
     if (complaint.citizenUid !== citizenUid) {
-      return res.status(403).json({ message: 'Not authorized to delete this complaint.' });
+      return res.status(403).json({
+        message: 'Not authorized to delete this complaint.',
+      });
     }
 
-    // Delete associated images from Supabase
-    const images = await ComplaintImages.findAll({
-      where: { complaintId: id }
-    });
-
-    const bucketName = 'cityzen-media';
-    for (const image of images) {
-      try {
-        const fileName = image.imageURL.split('/').pop();
-        await supabase.storage.from(bucketName).remove([`complaint_images/${id}_${fileName}`]);
-      } catch (storageError) {
-        console.warn(`Could not delete image from storage: ${storageError.message}`);
-      }
-    }
-
-    // Delete complaint and associated records (cascade)
     await Complaint.destroy({
       where: { id },
-      transaction: t
+      transaction: t,
     });
 
     await t.commit();
@@ -290,41 +312,66 @@ exports.deleteComplaint = async (req, res) => {
   } catch (error) {
     await t.rollback();
     console.error('Delete Complaint Error:', error.message);
-    res.status(500).json({ message: 'Server error while deleting complaint.' });
+    res.status(500).json({
+      message: 'Server error while deleting complaint.',
+    });
+  }
+};
+
+/* =========================
+   RECOMMEND AUTHORITIES
+========================= */
 exports.getRecommendedAuthorities = async (req, res) => {
   try {
-    const { category, description, latitude, longitude, location_string } = req.query;
+    const {
+      category,
+      description,
+      latitude,
+      longitude,
+      location_string,
+    } = req.query;
 
     if (!category || !description || !latitude || !longitude) {
-      return res.status(400).json({ message: 'Missing required query parameters.' });
+      return res.status(400).json({
+        message: 'Missing required query parameters.',
+      });
     }
 
     const authorities = await AuthorityCompany.findAll({
-      attributes: ['id', 'name']
+      attributes: ['id', 'name'],
     });
 
-    const openRouterResponse = await axios.post('http://localhost:8001/recommend-authority', {
-      category,
-      description,
-      latitude: parseFloat(latitude),
-      longitude: parseFloat(longitude),
-      authorities: authorities.map(a => ({ id: a.id, name: a.name })),
-      location_string
-    });
+    const response = await axios.post(
+      'http://localhost:8001/recommend-authority',
+      {
+        category,
+        description,
+        latitude: parseFloat(latitude),
+        longitude: parseFloat(longitude),
+        authorities: authorities.map(a => ({
+          id: a.id,
+          name: a.name,
+        })),
+        location_string,
+      }
+    );
 
-    const recommendation = openRouterResponse.data;
+    const recommendation = response.data;
 
-    const authority = await AuthorityCompany.findByPk(recommendation.authorityCompanyId, {
-      attributes: ['name']
-    });
+    const authority = await AuthorityCompany.findByPk(
+      recommendation.authorityCompanyId,
+      { attributes: ['name'] }
+    );
 
     res.status(200).json({
       ...recommendation,
-      authorityName: authority ? authority.name : 'Unknown Authority'
+      authorityName: authority ? authority.name : 'Unknown Authority',
     });
-
   } catch (error) {
-    console.error('Error getting recommended authorities:', error);
-    res.status(500).json({ message: 'Error getting recommended authorities', error: error.message });
+    console.error('Get Recommended Authorities Error:', error.message);
+    res.status(500).json({
+      message: 'Error getting recommended authorities',
+      error: error.message,
+    });
   }
 };
