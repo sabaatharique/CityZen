@@ -1,12 +1,10 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Configure base URL - can be configured via EXPO env or fallback to dev/prod
+// Configure base URL: prefer EXPO env, fallback to dev/prod defaults
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL
-  ? `${process.env.EXPO_PUBLIC_API_URL.replace(/\/$/, '')}/api`
-  : (__DEV__
-      ? 'http://localhost:3000/api' // local dev fallback
-      : 'https://your-production-url.com/api');
+  ? `${process.env.EXPO_PUBLIC_API_URL}/api`
+  : (__DEV__ ? 'http://localhost:3000/api' : 'https://your-production-url.com/api');
 
 // Create axios instance
 const api = axios.create({
