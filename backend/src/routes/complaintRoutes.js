@@ -10,6 +10,7 @@ router.post('/complaints', upload.array('images'), complaintController.createCom
 
 // Get all categories
 router.get('/complaints/categories', complaintController.getCategories);
+router.get('/complaints/recommend-authorities', complaintController.getRecommendedAuthorities);
 
 // Get all complaints (with filtering and pagination)
 router.get('/complaints', complaintController.getAllComplaints);
