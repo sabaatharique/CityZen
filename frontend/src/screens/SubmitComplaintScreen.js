@@ -12,6 +12,7 @@ import { auth } from '../config/firebase';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 const OPENROUTER_API_URL = process.env.EXPO_PUBLIC_OPENROUTER_API_URL;
+const AI_SERVICE_URL = process.env.EXPO_PUBLIC_AI_SERVICE_URL;
 
 
 export default function SubmitComplaintScreen({ navigation, onLogout, darkMode, toggleDarkMode, route }) {
@@ -262,7 +263,7 @@ const updateLocationWithAddress = async (latitude, longitude) => {
     });
 
     try {
-      const res = await fetch("http://192.168.0.103:8000/detect", {
+      const res = await fetch(`${AI_SERVICE_URL || 'http://localhost:8000'}/detect`, {
         method: "POST",
         body: formData,
       });
