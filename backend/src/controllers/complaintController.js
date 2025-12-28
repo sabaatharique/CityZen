@@ -337,13 +337,41 @@ exports.getRecommendedAuthorities = async (req, res) => {
       location_string,
     } = req.query;
 
+    // Validate that we have at least the basic info
+    if (!category || !description || !latitude || !longitude) {
+      return res.status(400).json({ message: 'Missing required query parameters: category, description, latitude, longitude' });
+    }
+
+    // Load authority list from DB to send to the AI recommendation service
+    const authorities = await AuthorityCompany.findAll({ attributes: ['id', 'name'] });
+    const authoritiesPayload = authorities.map((a) => ({ id: a.id, name: a.name }));
+
+    if (!process.env.OPENROUTER_API_URL) {
+      console.warn('OPENROUTER_API_URL not set; defaulting to http://localhost:8001');
+    }
+    const openRouterUrl = process.env.OPENROUTER_API_URL || 'http://localhost:8001';
+
+    // Call the OpenRouter / recommendation service
+    const openRouterResponse = await axios.post(`${openRouterUrl}/recommend-authority`, {
+      category,
+      description,
+      latitude: parseFloat(latitude),
+      longitude: parseFloat(longitude),
+      location_string,
+      authorities: authoritiesPayload,
+    }, { timeout: 15000 });
+
     const recommendations = openRouterResponse.data;
+    if (!Array.isArray(recommendations)) {
+      throw new Error('Invalid response from recommendation service');
+    }
 
     const enrichedRecommendations = await Promise.all(
       recommendations.map(async (rec) => {
-        const authority = await AuthorityCompany.findByPk(rec.authorityCompanyId, {
-          attributes: ['name']
-        });
+        const authority = rec.authorityCompanyId
+          ? await AuthorityCompany.findByPk(rec.authorityCompanyId, { attributes: ['name'] })
+          : null;
+
         return {
           ...rec,
           authorityName: authority ? authority.name : 'Unknown Authority'
