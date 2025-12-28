@@ -302,6 +302,7 @@ export default function SubmitComplaintDetailsScreen({ navigation, onLogout, dar
         }
     };
 
+
     const handleNext = () => {
         const newErrors = {};
         if (images.length === 0) newErrors.image = 'Evidence photos are mandatory.';
@@ -316,6 +317,11 @@ export default function SubmitComplaintDetailsScreen({ navigation, onLogout, dar
 
         navigation.navigate('SubmitComplaint');
     };
+
+    const handleBack = () => {
+        navigation.goBack();
+    };
+
 
     return (
         <View style={[styles.container, darkMode && styles.darkContainer]}>
@@ -434,6 +440,11 @@ export default function SubmitComplaintDetailsScreen({ navigation, onLogout, dar
                             <Text style={[styles.label, darkMode && styles.textWhite, { marginBottom: 0 }]}>
                                 Location Details <Text style={styles.req}>*</Text>
                             </Text>
+
+                            <TouchableOpacity onPress={handleGPSDetect} style={styles.refreshBtn}>
+                                <RefreshCw size={14} color="#1E88E5" />
+                                <Text style={styles.refreshText}>Refresh GPS</Text>
+                            </TouchableOpacity>
                         </View>
                         <>
                             <View style={[styles.readOnlyBox, darkMode && styles.readOnlyBoxDark]}>
@@ -475,9 +486,14 @@ export default function SubmitComplaintDetailsScreen({ navigation, onLogout, dar
                         <Shield size={16} color="#6B7280" style={{ marginLeft: 'auto' }} />
                     </TouchableOpacity>
 
-                    <TouchableOpacity onPress={handleNext} style={styles.nextButton}>
-                        <Text style={styles.nextButtonText}>Next</Text>
-                    </TouchableOpacity>
+                    <View style={styles.buttonContainer}>
+                        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+                            <Text style={styles.backButtonText}>Back</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={handleNext} style={styles.nextButton}>
+                            <Text style={styles.nextButtonText}>Next</Text>
+                        </TouchableOpacity>
+                    </View>
 
                 </View>
             </ScrollView>
@@ -556,6 +572,25 @@ const styles = StyleSheet.create({
     viewStatusText: { color: 'white', fontWeight: 'bold' },
     submitAgainBtn: { width: '100%', padding: 16, alignItems: 'center' },
     submitAgainText: { color: '#1E88E5', fontWeight: '600' },
-    nextButton: { backgroundColor: '#1E88E5', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 16 },
+    buttonContainer: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 16, gap: 16 }, // Added gap for spacing
+    backButton: {
+        backgroundColor: '#E5E7EB',
+        padding: 16,
+        borderRadius: 12,
+        alignItems: 'center',
+        flex: 1, // Make it take equal space
+    },
+    backButtonText: {
+        color: '#1F2937',
+        fontWeight: 'bold',
+        fontSize: 16,
+    },
+    nextButton: {
+        backgroundColor: '#1E88E5',
+        padding: 16,
+        borderRadius: 12,
+        alignItems: 'center',
+        flex: 1, // Make it take equal space
+    },
     nextButtonText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
 });

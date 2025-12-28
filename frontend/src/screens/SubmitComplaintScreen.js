@@ -17,7 +17,6 @@ export default function SubmitComplaintScreen({ navigation, onLogout, darkMode, 
     description,
     setDescription,
     selectedCategory,
-    resetState,
   } = useComplaint();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -90,6 +89,10 @@ export default function SubmitComplaintScreen({ navigation, onLogout, darkMode, 
     navigation.navigate('SubmittedComplaint');
   };
 
+  const handleBack = () => {
+    navigation.goBack();
+  };
+
   return (
     <View style={[styles.container, darkMode && styles.darkContainer]}>
       <Navigation onLogout={onLogout} darkMode={darkMode} toggleDarkMode={toggleDarkMode} navigation={navigation} />
@@ -117,12 +120,18 @@ export default function SubmitComplaintScreen({ navigation, onLogout, darkMode, 
             onChangeText={setDescription}
           />
 
-          <TouchableOpacity
-            onPress={handleSubmit}
-            disabled={isSubmitting}
-            style={[styles.submitBtn, isSubmitting && styles.btnDisabled]}
-          >
-            {isSubmitting ? <ActivityIndicator color="white" /> : <Text style={styles.submitBtnText}>Submit Complaint</Text>}</TouchableOpacity>
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+              <Text style={styles.backButtonText}>Back</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleSubmit}
+              disabled={isSubmitting}
+              style={[styles.submitBtn, isSubmitting && styles.btnDisabled]}
+            >
+              {isSubmitting ? <ActivityIndicator color="white" /> : <Text style={styles.submitBtnText}>Submit</Text>}
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
       <BottomNav navigation={navigation} darkMode={darkMode} />
@@ -142,7 +151,28 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 16, color: '#1F2937' },
   inputDark: { borderColor: '#374151', color: 'white', backgroundColor: '#374151' },
   errorBorder: { borderColor: '#EF4444' },
-  submitBtn: { backgroundColor: '#1E88E5', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 16 },
+  submitBtn: {
+    backgroundColor: '#1E88E5',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    flex: 1, // Make it take equal space
+  },
   btnDisabled: { backgroundColor: '#93C5FD' },
-  submitBtnText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
+  submitBtnText: { color: 'white', fontWeight: 'bold', fontSize: 16, textAlign: 'center' },
+  buttonContainer: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 16, gap: 16 },
+  backButton: {
+    backgroundColor: '#E5E7EB',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    flex: 1, // Make it take equal space
+  },
+  backButtonText: {
+    color: '#1F2937',
+    fontWeight: 'bold',
+    fontSize: 16,
+    textAlign: 'center'
+  },
 });
+
