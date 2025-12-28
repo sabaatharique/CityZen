@@ -1,6 +1,6 @@
 # Cityzen – Local Development Setup
 
-This file contains **everything needed** to run Cityzen locally, including the **final run script** and the **full manual setup**.
+This document contains **everything needed** to run **Cityzen locally**, including the **quick-start script**, **full manual setup**, and **environment configuration**.
 
 ---
 
@@ -12,13 +12,17 @@ This file contains **everything needed** to run Cityzen locally, including the *
 .\run-cityzen.ps1
 ```
 
-If the script is not available or fails, follow the manual setup below.
+If the script is not available or fails, follow the **manual setup** below.
+
+---
 
 ## Manual Setup
 
-You will need 4 terminals running simultaneously.
+You will need **5 terminals running simultaneously**.
 
-### Terminal 1 – Backend
+---
+
+### Terminal 1 – Backend Server
 
 Navigate to the backend folder:
 
@@ -38,17 +42,9 @@ Start the backend development server:
 npm run dev
 ```
 
-### Terminal 2 – Expose Backend API
+---
 
-Use LocalTunnel to expose the backend API on port 3000:
-
-```powershell
-lt --port 3000 --subdomain cityzen-api
-```
-
-Keep this terminal running while the app is in use.
-
-### Terminal 3 – Frontend (Expo)
+### Terminal 2 – Frontend (Expo)
 
 Navigate to the frontend folder:
 
@@ -68,7 +64,7 @@ Start the Expo frontend:
 npx expo start
 ```
 
-If you encounter a lucide-react error:
+If you encounter a `lucide-react` error:
 
 ```powershell
 npm install lucide-react
@@ -76,12 +72,14 @@ npm install lucide-react
 
 After Expo starts:
 
-1. Open Expo Go on your phone
-2. Scan the QR code generated in the terminal
-3. First launch may take 1–3 minutes (this is normal)
-4. The Cityzen app will appear after booting
+1. Open **Expo Go** on your phone
+2. Scan the QR code shown in the terminal
+3. First launch may take **1–3 minutes** (normal)
+4. The **Cityzen app** will appear after booting
 
-### Terminal 4 – AI Service (FastAPI)
+---
+
+### Terminal 3 – AI Detection Service (FastAPI)
 
 Navigate to the AI service folder:
 
@@ -89,7 +87,7 @@ Navigate to the AI service folder:
 cd ai-service
 ```
 
-Create a Python virtual environment (if not already created):
+Create a Python virtual environment (only once):
 
 ```powershell
 python -m venv venv
@@ -129,19 +127,117 @@ venv\Scripts\Activate.ps1
 uvicorn ai_service:app --host 0.0.0.0 --port 8000
 ```
 
+---
+
+### Terminal 4 – AI Recommendation Service (OpenRouter / FastAPI)
+
+Navigate to the OpenRouter service folder:
+
+```powershell
+cd openrouter-service
+```
+
+Create a Python virtual environment (only once):
+
+```powershell
+python -m venv venv
+```
+
+Verify the virtual environment:
+
+```powershell
+ls venv\Scripts
+```
+
+Activate the virtual environment:
+
+```powershell
+.\venv\Scripts\Activate.ps1
+```
+
+Install required Python packages:
+
+```powershell
+pip install fastapi uvicorn
+pip install ultralytics
+pip install python-dotenv
+pip install openrouter
+pip install openai
+# other packages may be required later
+```
+
+Run the AI recommendation service (first time):
+
+```powershell
+uvicorn openrouter_service:app --host 0.0.0.0 --port 8001
+```
+
+For subsequent runs:
+
+```powershell
+cd openrouter-service
+venv\Scripts\Activate.ps1
+uvicorn openrouter_service:app --host 0.0.0.0 --port 8001
+```
+
+---
+
+## IP Address Configuration (Important)
+
+You must add **your local IP address** to the following files:
+
+```
+frontend\.env
+  → EXPO_PUBLIC_API_URL=http://IP:3000
+  →EXPO_PUBLIC_OPENROUTER_API_URL=http://IP:8001
+  →EXPO_PUBLIC_AI_SERVICE_URL=http://IP:8000
+```
+---
+
+### How to get your IP address
+
+Run the following command:
+
+```powershell
+ipconfig
+```
+
+Copy the **IPv4 Address** under:
+
+```
+Wireless LAN adapter Wi-Fi
+```
+
+Use this IP where required in the files above.
+
+---
+
+## Environment Files
+
+The following folders contain `.env` files that must be configured correctly:
+
+* `frontend/.env`
+* `backend/.env`
+* `openrouter-service/.env`
+
+Ensure all required URLs, keys, and ports are set before running the app.
+
+---
+
 ## Notes
 
-- Always activate the Python virtual environment before running the AI service
-- Run `npm install` again if dependencies change
-- Expo first boot delay is normal
-- All four terminals must remain running while using the app
+* Always activate the **Python virtual environment** before running any AI service
+* Run `npm install` again if dependencies change
+* Expo first boot delay is normal
+* **All five terminals must remain running** while using the app
+
+---
 
 ## Terminal Overview
 
-| Terminal   | Purpose         |
-| ---------- | --------------- |
-| Terminal 1 | Backend server  |
-| Terminal 2 | LocalTunnel API |
-| Terminal 3 | Frontend (Expo) |
-| Terminal 4 | AI Service      |
-
+| Terminal   | Purpose                             |
+| ---------- | ----------------------------------- |
+| Terminal 1 | Backend server                      |
+| Terminal 2 | Frontend (Expo)                     |
+| Terminal 3 | AI detection service (FastAPI)      |
+| Terminal 4 | AI recommendation service (FastAPI) |

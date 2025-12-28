@@ -8,19 +8,16 @@ Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd backend; npm r
 # ⏳ Wait 5 seconds
 Start-Sleep -Seconds 5
 
-# Terminal 2: LocalTunnel
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "lt --port 3000 --subdomain cityzen-api"
-
-# Terminal 3: AI Service
+# Terminal 2: AI Service
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd ai-service; venv\Scripts\activate; python -m uvicorn ai_service:app --host 0.0.0.0 --port 8000"
 
-# Terminal 4: Frontend
+# Terminal 3: Frontend
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd frontend; npx expo start -c"
 
-# Terminal 5: Gemini Service
+# Terminal 4: recommendation Service
 Start-Process powershell -ArgumentList "-NoExit", "-Command", `
 "
-cd gemini-service;
+cd openrouter-service;
 if (!(Test-Path venv)) {
     python -m venv venv;
     venv\Scripts\activate;
@@ -28,5 +25,5 @@ if (!(Test-Path venv)) {
 } else {
     venv\Scripts\activate;
 }
-uvicorn gemini_service:app --host 0.0.0.0 --port 8001
+uvicorn openrouter_service:app --host 0.0.0.0 --port 8001
 "

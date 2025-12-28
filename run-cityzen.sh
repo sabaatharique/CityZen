@@ -13,13 +13,8 @@ gnome-terminal \
 # ⏳ Wait 15 seconds
 sleep 15
 
-# === Terminal 2: LocalTunnel ===
-gnome-terminal \
-  --tab --title="LocalTunnel" -- bash -c "
-    lt --port 3000 --subdomain cityzen-api;
-    exec bash"
 
-# === Terminal 3: AI Service ===
+# === Terminal 2: AI Service ===
 gnome-terminal \
   --tab --title="AI Service" -- bash -c "
     cd ai-service &&
@@ -27,17 +22,18 @@ gnome-terminal \
     python -m uvicorn ai_service:app --host 0.0.0.0 --port 8000;
     exec bash"
 
-# === Terminal 4: Frontend ===
+sleep 45
+# === Terminal 3: Frontend ===
 gnome-terminal \
   --tab --title="CityZen Frontend" -- bash -c "
     cd frontend &&
     npx expo start -c;
     exec bash"
 
-# === Terminal 5: Gemini Service ===
+# === Terminal 4: OpenRouter Service ===
 gnome-terminal \
-  --tab --title="Gemini Service" -- bash -c "
-    cd gemini-service &&
+  --tab --title="OpenRouter Service" -- bash -c "
+    cd openrouter-service &&
     if [ ! -d \"venv\" ]; then
       python -m venv venv &&
       source venv/bin/activate &&
@@ -45,5 +41,5 @@ gnome-terminal \
     else
       source venv/bin/activate;
     fi &&
-    uvicorn gemini_service:app --host 0.0.0.0 --port 8001;
+    uvicorn openrouter_service:app --host 0.0.0.0 --port 8001;
     exec bash"
