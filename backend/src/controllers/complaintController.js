@@ -1,4 +1,4 @@
-const { Complaint, Category, ComplaintImages, AuthorityCompany, sequelize } = require('../models');
+const { Complaint, Category, ComplaintImages, AuthorityCompany, ComplaintAssignment, sequelize } = require('../models');
 const supabase = require('../config/supabase'); // Import Supabase client
 const axios = require('axios');
 
@@ -72,6 +72,19 @@ exports.createComplaint = async (req, res) => {
       }, { transaction: t });
     }
 
+    const { chosenAuthorities } = req.body;
+    if (chosenAuthorities) {
+      const authorityIds = JSON.parse(chosenAuthorities);
+      if (Array.isArray(authorityIds) && authorityIds.length > 0) {
+        for (const authorityId of authorityIds) {
+          await ComplaintAssignment.create({
+            complaintId: complaint.id,
+            authorityCompanyId: authorityId,
+          }, { transaction: t });
+        }
+      }
+    }
+
     await t.commit();
     res.status(201).json({ message: 'Complaint created successfully', complaint });
 
@@ -117,16 +130,21 @@ exports.getRecommendedAuthorities = async (req, res) => {
       location_string
     });
 
-    const recommendation = openRouterResponse.data;
+    const recommendations = openRouterResponse.data;
 
-    const authority = await AuthorityCompany.findByPk(recommendation.authorityCompanyId, {
-      attributes: ['name']
-    });
+    const enrichedRecommendations = await Promise.all(
+      recommendations.map(async (rec) => {
+        const authority = await AuthorityCompany.findByPk(rec.authorityCompanyId, {
+          attributes: ['name']
+        });
+        return {
+          ...rec,
+          authorityName: authority ? authority.name : 'Unknown Authority'
+        };
+      })
+    );
 
-    res.status(200).json({
-      ...recommendation,
-      authorityName: authority ? authority.name : 'Unknown Authority'
-    });
+    res.status(200).json(enrichedRecommendations);
 
   } catch (error) {
     console.error('Error getting recommended authorities:', error);
