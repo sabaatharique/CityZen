@@ -1,8 +1,12 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Image, Alert } from 'react-native';
 import Navigation from '../components/Navigation';
 import BottomNav from '../components/BottomNav';
-import { useComplaint } from '../context/ComplaintContext';
+
+import { Camera, Image as ImageIcon, MapPin, Sparkles, Trash2, ChevronDown, ChevronUp, RefreshCw, Clock, CheckCircle, Shield } from 'lucide-react-native';
+import * as ImagePicker from "expo-image-picker";
+import * as Location from 'expo-location';
+// import * as FileSystem from 'expo-file-system';
 import axios from 'axios';
 import { auth } from '../config/firebase';
 
@@ -10,32 +14,46 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL;
 const OPENROUTER_API_URL = process.env.EXPO_PUBLIC_OPENROUTER_API_URL;
 const AI_SERVICE_URL = process.env.EXPO_PUBLIC_AI_SERVICE_URL;
 
-export default function SubmitComplaintScreen({ navigation, onLogout, darkMode, toggleDarkMode }) {
-  const {
-    images,
-    location,
-    title,
-    setTitle,
-    description,
-    setDescription,
-    selectedCategory,
-  } = useComplaint();
 
+export default function SubmitComplaintScreen({ navigation, onLogout, darkMode, toggleDarkMode, route }) {
+
+  const [aiResult, setAiResult] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+
+  const CONFIDENCE_THRESHOLD = 50;
+
+  const aiDetected = aiResult?.label?.toLowerCase().includes("pothole");
+
+  const aiConfidence = aiResult?.confidence ?? 0;
+
+  const aiApproved = aiDetected && aiConfidence >= CONFIDENCE_THRESHOLD;
+
+  // Form State
+  const [title, setTitle] = useState(
+    aiResult ? "Pothole Detected" : ""
+  );
+  const [description, setDescription] = useState(
+    aiResult
+      ? `AI detected a pothole with ${aiResult.confidence}% confidence.`
+      : ""
+  );
+
+  const [selectedCategory, setSelectedCategory] = useState(null); // Changed to store object {id, name}
+  const [categories, setCategories] = useState([]); // New state for fetched categories
+  const [images, setImages] = useState([]); // Changed to array for multiple images
+  const [privacyEnabled, setPrivacyEnabled] = useState(false);
+  
+  const [location, setLocation] = useState({ latitude: null, longitude: null, fullAddress: null,});
+  const [locationTime, setLocationTime] = useState(null);
+  
+  // Dropdown State
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  // System State
+  const [locating, setLocating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
 
-  const handleSubmit = async () => {
-    const newErrors = {};
-    if (!title) newErrors.title = 'Title is required.';
-    if (images.length === 0) newErrors.image = 'Evidence photos are mandatory.';
-    if (!selectedCategory) newErrors.category = 'Category is required.';
-    if (!location?.latitude || !location?.longitude) newErrors.location = 'GPS location is required.';
-
-    if (Object.keys(newErrors).length > 0) {
-      const errorMessages = Object.values(newErrors).join('\n');
-      Alert.alert('Missing Info', errorMessages);
-      setErrors(newErrors);
-      return;
   const [recommendedAuthorities, setRecommendedAuthorities] = useState([]);
   const [chosenAuthorities, setChosenAuthorities] = useState([]);
   const [loadingRecommendation, setLoadingRecommendation] = useState(false);
@@ -80,9 +98,8 @@ export default function SubmitComplaintScreen({ navigation, onLogout, darkMode, 
         setSelectedCategory(roadCategory);
       }
     }
+  }, [categories, aiResult]);
 
-    setIsSubmitting(true);
-    setErrors({});
   useEffect(() => {
     const fetchRecommendedAuthority = async () => {
       if (selectedCategory && location.latitude && location.longitude && description) {
@@ -153,49 +170,31 @@ useEffect(() => {
     return status === 'granted';
   };
 
-    const formData = new FormData();
-    formData.append('title', title);
-    formData.append('description', description);
-    formData.append('latitude', location.latitude);
-    formData.append('longitude', location.longitude);
-    formData.append('citizenUid', auth.currentUser?.uid);
-    formData.append('categoryId', selectedCategory.id);
-
-    if (!auth.currentUser?.uid) {
-      Alert.alert('Error', 'Could not identify user. Please log in again.');
-      setIsSubmitting(false);
-      return;
+  const requestCameraPermission = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      alert('Permission to access camera is required!');
+      return false;
     }
+    return true;
+  };
 
-    images.forEach((imageUri, index) => {
-      const filename = imageUri.split('/').pop();
-      const match = /\.(\w+)$/.exec(filename);
-      const type = match ? `image/${match[1]}` : `image`;
-      formData.append('images', {
-        uri: imageUri,
-        name: filename,
-        type: type,
-      });
-    });
+  const requestLibraryPermission = async () => { // New permission request
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      alert('Permission to access media library is required!');
+      return false;
+    }
+    return true;
+  };
 
-    try {
-      const response = await axios.post(`${API_URL}/api/complaints`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          'bypass-tunnel-reminder': 'true'
-        }
-      });
+  //Location
+  // Convert DMS array to decimal degrees
+  const convertDMSToDecimal = (dms, ref) => {
+    if (!dms) return null;
+    const [deg, min, sec] = dms;
+    let dec = deg + min / 60 + sec / 3600;
 
-      if (response.status === 201) {
-        Alert.alert("Success", "Complaint Submitted Successfully!");
-        navigation.navigate('SubmittedComplaint');
-      } else {
-        Alert.alert('Error', 'Failed to submit complaint. Please try again.');
-      }
-    } catch (error) {
-      console.error('Submit Complaint Error:', error.response?.data || error.message);
-      const message = error.response?.data?.message || 'An unexpected error occurred.';
-      Alert.alert('Submission Failed', message);
     if (ref === 'S' || ref === 'W') dec = -dec;
     return dec;
   };
@@ -282,14 +281,67 @@ const updateLocationWithAddress = async (latitude, longitude) => {
     } catch (err) {
       Alert.alert("AI Error", "Failed to analyze image");
     } finally {
-      setIsSubmitting(false);
+      setAiLoading(false);
     }
+  };
+  
+  //Camera
+  const handleImagePick = async () => {
+    const hasPermission = await requestCameraPermission();
+    const locPerm = await requestLocationPermission();
+    if (!locPerm || !hasPermission) return;
 
-    navigation.navigate('SubmittedComplaint');
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      allowsEditing: false,
+      quality: 1,
+      exif: true,
+    });
+
+    // Camera
+    if (result.assets?.length > 0) {
+      const asset = result.assets[0];
+      setImages(prev => [...prev, asset.uri]); // Append new image to array
+      await runAiDetection(asset.uri);
+
+      const exifLocation = extractLocationFromExif(asset.exif);
+      if (exifLocation) {
+        await updateLocationWithAddress(exifLocation.latitude, exifLocation.longitude);
+        return;
+      }
+
+      const gps = await Location.getCurrentPositionAsync({});
+      await updateLocationWithAddress(gps.coords.latitude, gps.coords.longitude);
+    }
   };
 
-  const handleBack = () => {
-    navigation.goBack();
+  const handleLibraryPick = async () => { // New function for picking from library
+    const hasPermission = await requestLibraryPermission();
+    const locPerm = await requestLocationPermission();
+    if (!locPerm || !hasPermission) return;
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      allowsEditing: false,  
+      quality: 1,
+      allowsMultipleSelection: true, // Allow multiple selections
+      exif: true, 
+    });
+
+    if (result.assets?.length > 0) {
+      const asset = result.assets[0];
+      setImages(prev => [...prev, ...result.assets.map(a => a.uri)]); // Append new images to array
+      await runAiDetection(asset.uri);
+
+      const exifLocation = extractLocationFromExif(asset.exif);
+      if (exifLocation) {
+        await updateLocationWithAddress(exifLocation.latitude, exifLocation.longitude);
+        return;
+      }
+
+      const gps = await Location.getCurrentPositionAsync({});
+      await updateLocationWithAddress(gps.coords.latitude, gps.coords.longitude);
+    }
   };
 
       const handleGPSDetect = async () => {
@@ -384,42 +436,75 @@ const updateLocationWithAddress = async (latitude, longitude) => {
   return (
     <View style={[styles.container, darkMode && styles.darkContainer]}>
       <Navigation onLogout={onLogout} darkMode={darkMode} toggleDarkMode={toggleDarkMode} navigation={navigation} />
-
+      
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
-        <Text style={[styles.heading, darkMode && styles.textWhite]}>Select Authority</Text>
-
+        <Text style={[styles.heading, darkMode && styles.textWhite]}>Submit Complaint</Text>
+        
         <View style={[styles.card, darkMode && styles.cardDark]}>
-          <Text style={[styles.label, darkMode && styles.textWhite]}>Title <Text style={styles.req}>*</Text></Text>
-          <TextInput
-            style={[styles.input, darkMode && styles.inputDark, errors.title && styles.errorBorder]}
-            placeholder="e.g. Large Pothole on Main St"
-            placeholderTextColor="#9CA3AF"
-            value={title}
-            onChangeText={setTitle}
-          />
 
-          <Text style={[styles.label, darkMode && styles.textWhite, { marginTop: 12 }]}>Description</Text>
-          <TextInput
-            style={[styles.input, { height: 80, textAlignVertical: 'top' }, darkMode && styles.inputDark]}
-            placeholder="Add any additional details (optional)"
-            placeholderTextColor="#9CA3AF"
-            multiline
-            value={description}
-            onChangeText={setDescription}
-          />
+          {aiResult && (
+            <View style={{
+              backgroundColor: "#EFF6FF",
+              padding: 10,
+              borderRadius: 8,
+              marginBottom: 12,
+              flexDirection: "row",
+              alignItems: "center"
+            }}>
+              <Sparkles size={16} color="#1E88E5" />
+              <Text style={{ marginLeft: 8, color: "#1E88E5", fontSize: 12 }}>
+                AI auto-filled this report. Please review before submitting.
+              </Text>
+            </View>
+          )}
 
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-              <Text style={styles.backButtonText}>Back</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleSubmit}
-              disabled={isSubmitting}
-              style={[styles.submitBtn, isSubmitting && styles.btnDisabled]}
+           
+           {/* 1. Image Upload (Mandatory) */}
+           <Text style={[styles.label, darkMode && styles.textWhite]}>Evidence Photos <Text style={styles.req}>*</Text></Text>
+           {images.length > 0 && (
+             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+              {images.map((uri, index) => (
+                <View key={index} style={styles.previewContainer}>
+                <Image source={{ uri }} style={styles.previewImage} resizeMode="cover" />
+
+               <TouchableOpacity onPress={() => setImages(images.filter((_, i) => i !== index))} style={styles.removeImgBtn}>
+                 <Trash2 size={16} color="white" />
+                 <Text style={styles.removeImgText}>Remove</Text>
+               </TouchableOpacity>
+              </View>
+              ))}
+             </ScrollView>
+           )}
+
+             <View style={styles.uploadRow}>
+              <TouchableOpacity onPress={handleImagePick} style={[styles.uploadBtn,images.length > 0 ? styles.uploadBtnSmall : null,errors.image && styles.errorBorder]}>
+                 <Camera size={images.length > 0 ? 18 : 24} color="#1E88E5" />
+                 <Text style={images.length > 0 ? styles.uploadTextSmall : styles.uploadText}>Camera</Text>
+               </TouchableOpacity>
+
+               <TouchableOpacity onPress={handleLibraryPick} style={[styles.uploadBtn,images.length > 0 ? styles.uploadBtnSmall : null,errors.image && styles.errorBorder]}>
+                 <ImageIcon size={images.length > 0 ? 18 : 24} color="#1E88E5" />
+                 <Text style={images.length > 0 ? styles.uploadTextSmall : styles.uploadText}>Gallery</Text>
+               </TouchableOpacity>
+             </View>
+           {errors.image && <Text style={styles.errorText}>{errors.image}</Text>}
+
+           {aiLoading && (
+            <Text style={{ color: "#6B7280", marginBottom: 8 }}>
+              Analyzing image with AI...
+            </Text>
+          )}
+
+           {/* AI Placeholder */}
+           {aiResult && (
+            <View
+              style={[
+                styles.aiBox,
+                {
+                  backgroundColor: aiApproved ? "#ECFDF5" : "#FEF2F2",
+                },
+              ]}
             >
-              {isSubmitting ? <ActivityIndicator color="white" /> : <Text style={styles.submitBtnText}>Submit</Text>}
-            </TouchableOpacity>
-          </View>
               <Sparkles
                 size={16}
                 color={aiApproved ? "#059669" : "#DC2626"}
@@ -607,6 +692,7 @@ const styles = StyleSheet.create({
   darkContainer: { backgroundColor: '#111827' },
   heading: { fontSize: 24, fontWeight: 'bold', marginBottom: 20, color: '#1F2937' },
   textWhite: { color: 'white' },
+  textGray: { color: '#9CA3AF' },
   req: { color: '#EF4444' },
   card: { backgroundColor: 'white', padding: 20, borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB' },
   selectedCard: {
@@ -615,32 +701,65 @@ const styles = StyleSheet.create({
     backgroundColor: '#EFF6FF',
   },
   cardDark: { backgroundColor: '#1F2937', borderColor: '#374151' },
-  label: { marginBottom: 8, fontWeight: '600', color: '#374151', fontSize: 14 },
+  label: { marginBottom: 12, fontWeight: '600', color: '#374151', fontSize: 14 },
+  
+  // Image
+  uploadRow: { flexDirection: 'row', gap: 12, marginBottom: 8 },
+  uploadBtn: { flex: 1, height: 80, borderWidth: 1, borderColor: '#E5E7EB', borderStyle: 'dashed', borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9FAFB' },
+  uploadText: { color: '#1E88E5', marginTop: 4, fontSize: 12, fontWeight: '600' },
+  previewContainer: { width:270, height:180, borderRadius:12, overflow:'hidden', marginRight:12, position:'relative' }, // Updated
+  previewImage: { width: '100%', height: '100%' },
+  uploadBtnSmall: { flex: 1, height: 40, borderWidth: 1, borderColor: '#E5E7EB', borderStyle: 'dashed', borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9FAFB' }, // New
+  uploadTextSmall: { color: '#1E88E5', marginTop: 4, fontSize: 10, fontWeight: '600' }, // New
+
+  removeImgBtn: { position:'absolute', bottom:10, right:10, backgroundColor:'rgba(0,0,0,0.6)', flexDirection:'row', padding:6, borderRadius:8, alignItems:'center' },
+  removeImgText: { color:'white', fontSize:12, marginLeft:4 },
+  addImgBtn: { position:'absolute', bottom:10, right:90, backgroundColor:'rgba(0,0,0,0.6)', flexDirection:'row', padding:6, borderRadius:8, alignItems:'center' }, // New
+  addImgText: { color:'white', fontSize:12, marginLeft:4, alignItems: 'center'  }, // New
+
+  aiBox: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, backgroundColor: '#F3E8FF', padding: 10, borderRadius: 8 },
+  aiText: { fontSize: 12, color: '#9333EA', marginLeft: 8, fontWeight: '500' },
+
   input: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 16, color: '#1F2937' },
   inputDark: { borderColor: '#374151', color: 'white', backgroundColor: '#374151' },
-  errorBorder: { borderColor: '#EF4444' },
-  submitBtn: {
-    backgroundColor: '#1E88E5',
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    flex: 1, // Make it take equal space
-  },
-  btnDisabled: { backgroundColor: '#93C5FD' },
-  submitBtnText: { color: 'white', fontWeight: 'bold', fontSize: 16, textAlign: 'center' },
-  buttonContainer: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 16, gap: 16 },
-  backButton: {
-    backgroundColor: '#E5E7EB',
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    flex: 1, // Make it take equal space
-  },
-  backButtonText: {
-    color: '#1F2937',
-    fontWeight: 'bold',
-    fontSize: 16,
-    textAlign: 'center'
-  },
-});
+  errorBorder: { borderColor: '#EF4444', borderWidth: 1 },
+  errorText: { color: '#EF4444', fontSize: 12, marginBottom: 12, marginTop: -8 },
 
+  // Dropdown
+  dropdownHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, marginBottom: 16 },
+  dropdownText: { fontSize: 16, color: '#1F2937', },
+  placeholderText: { color: '#9CA3AF' },
+  dropdownList: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, marginBottom: 16, overflow: 'hidden' },
+  dropdownItem: { padding: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', backgroundColor: '#F9FAFB' },
+  dropdownItemDark: { backgroundColor: '#374151', borderBottomColor: '#4B5563' },
+  dropdownItemText: { color: '#374151' },
+
+  // Location Read-Only
+  locationSection: { marginBottom: 16, marginTop: 4 },
+  readOnlyBox: { backgroundColor: '#F3F4F6', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB' },
+  readOnlyBoxDark: { backgroundColor: '#374151', borderColor: '#4B5563' },
+  readOnlyLabel: { fontSize: 12, color: '#6B7280', marginLeft: 6 },
+  readOnlyValue: { fontSize: 15, fontWeight: '600', color: '#1F2937', marginLeft: 22 },
+  refreshBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  refreshText: { color: '#1E88E5', fontSize: 12, fontWeight: 'bold' },
+
+  privacyRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 24, marginTop: 8 },
+  checkbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 2, borderColor: '#D1D5DB', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  checkboxActive: { backgroundColor: '#1E88E5', borderColor: '#1E88E5' },
+  privacyText: { fontSize: 14, color: '#374151' },
+
+  submitBtn: { backgroundColor: '#1E88E5', padding: 16, borderRadius: 12, alignItems: 'center', marginBottom: 12 },
+  btnDisabled: { backgroundColor: '#93C5FD' },
+  submitBtnText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
+  
+  // Success Screen
+  successTitle: { fontSize: 28, fontWeight: 'bold', color: '#1F2937', marginBottom: 8 },
+  successSub: { color: '#6B7280', fontSize: 16, marginBottom: 32 },
+  summaryCard: { width: '100%', backgroundColor: 'white', padding: 20, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', marginBottom: 32 },
+  summaryLabel: { color: '#6B7280', fontSize: 12 },
+  summaryVal: { color: '#1F2937', fontSize: 16, fontWeight: '600' },
+  viewStatusBtn: { width: '100%', backgroundColor: '#1E88E5', padding: 16, borderRadius: 12, alignItems: 'center', marginBottom: 12 },
+  viewStatusText: { color: 'white', fontWeight: 'bold' },
+  submitAgainBtn: { width: '100%', padding: 16, alignItems: 'center' },
+  submitAgainText: { color: '#1E88E5', fontWeight: '600' }
+});
