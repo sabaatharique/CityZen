@@ -1,7 +1,11 @@
+
 // backend/src/routes/authRoutes.js
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
+
+// Check if OTP is required for login (within 24 hours of last OTP verification)
+router.post('/auth/otp/is-required', authController.isOtpRequired);
 
 // 1. SIGNUP: POST /api/auth/users
 router.post('/users', authController.registerProfile);

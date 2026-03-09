@@ -1,3 +1,30 @@
+// Check if OTP is required for login (within 24 hours of last OTP verification)
+exports.isOtpRequired = async (req, res) => {
+  try {
+    const { firebaseUid } = req.body;
+    if (!firebaseUid) {
+      return res.status(400).json({ message: 'firebaseUid is required.' });
+    }
+    const user = await User.findOne({ where: { firebaseUid } });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+    const lastOtp = user.lastOtpVerifiedAt;
+    let otpRequired = true;
+    if (lastOtp) {
+      const now = new Date();
+      const diffMs = now - new Date(lastOtp);
+      const diffHrs = diffMs / (1000 * 60 * 60);
+      if (diffHrs < 24) {
+        otpRequired = false;
+      }
+    }
+    return res.json({ otpRequired });
+  } catch (err) {
+    console.error('OTP check error:', err);
+    res.status(500).json({ message: 'Failed to check OTP requirement.' });
+  }
+};
 // backend/src/controllers/authController.js
 const { User, Citizen, Authority, Admin, sequelize } = require('../models');
 const { Otp } = require('../models'); // New: Import Otp model
@@ -331,6 +358,12 @@ exports.verifyOtpChallenge = async (req, res) => {
     if (!loginUid) {
       return res.status(400).json({ message: 'Invalid login challenge payload.' });
     }
+
+    // Update lastOtpVerifiedAt for the user
+    await User.update(
+      { lastOtpVerifiedAt: new Date() },
+      { where: { firebaseUid: loginUid } }
+    );
 
     const profile = await fetchUserProfile(loginUid);
     if (!profile) {

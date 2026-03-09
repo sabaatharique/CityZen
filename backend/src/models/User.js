@@ -20,6 +20,11 @@ const User = sequelize.define('User', {
   role: {
     type: DataTypes.ENUM('citizen', 'authority', 'admin'), 
     allowNull: false
+  },
+  lastOtpVerifiedAt: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    defaultValue: null
   }
 });
 

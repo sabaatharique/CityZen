@@ -7,6 +7,7 @@ import { Mail, Lock, Building2, Eye, EyeOff, AlertCircle } from 'lucide-react-na
 
 // NEW IMPORTS for Firebase and API calls
 import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth } from '../config/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 
@@ -20,6 +21,17 @@ export default function LoginScreen({ navigation }) {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  // Helper to check if OTP is required
+  const checkOtpRequired = async (firebaseUid) => {
+    try {
+      const response = await axios.post(`${API_URL}/api/auth/otp/is-required`, { firebaseUid });
+      return response.data.otpRequired;
+    } catch (err) {
+      // fallback: require OTP if error
+      return true;
+    }
+  };
 
   const handleLogin = async () => {
     // Basic Validation
@@ -36,12 +48,26 @@ export default function LoginScreen({ navigation }) {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
 
-      // 2. Request login OTP challenge
+      // 2. Check if OTP is required
+      const otpRequired = await checkOtpRequired(firebaseUser.uid);
+
+      if (!otpRequired) {
+        // Persist user session (similar to OTP flow)
+        await AsyncStorage.setItem('userData', JSON.stringify({
+          firebaseUid: firebaseUser.uid,
+          email: firebaseUser.email,
+        }));
+        // Proceed to home/dashboard (no OTP needed)
+        navigation.navigate('HomeScreen');
+        return;
+      }
+
+      // 3. Request login OTP challenge as before
       const response = await axios.post(`${API_URL}/api/auth/login/request-otp`, {
         firebaseUid: firebaseUser.uid,
       }, {
         headers: {
-          'bypass-tunnel-reminder': 'true', // CRITICAL: Localtunnel fix
+          'bypass-tunnel-reminder': 'true',
           'Content-Type': 'application/json'
         }
       });
