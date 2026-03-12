@@ -34,6 +34,7 @@ router.get('/admin/moderation', complaintController.getModerationOverview);
 
 // Department performance stats (Admin)
 router.get('/admin/departments/stats', complaintController.getDepartmentPerformanceStats);
+router.get('/admin/analytics', complaintController.getAdminAnalytics);
 
 // Get all complaints (with filtering and pagination)
 router.get('/complaints', complaintController.getAllComplaints);

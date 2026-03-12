@@ -32,21 +32,25 @@ export default function AdminDashboardScreen({ route, navigation, onLogout, dark
     setActiveTab('flags');
   };
 
-  useEffect(() => {
-    const backAction = () => {
-      if (activeTab !== 'overview') {
-        setActiveTab('overview');
+  const { useFocusEffect } = require('@react-navigation/native');
+
+  useFocusEffect(
+    React.useCallback(() => {
+      const backAction = () => {
+        if (activeTab !== 'overview') {
+          setActiveTab('overview');
+          return true;
+        }
+        Alert.alert("Logout", "Exit Admin Panel?", [
+          { text: "Cancel" },
+          { text: "Logout", onPress: onLogout }
+        ]);
         return true;
-      }
-      Alert.alert("Logout", "Exit Admin Panel?", [
-        { text: "Cancel" },
-        { text: "Logout", onPress: onLogout }
-      ]);
-      return true;
-    };
-    const backHandler = BackHandler.addEventListener("hardwareBackPress", backAction);
-    return () => backHandler.remove();
-  }, [activeTab]);
+      };
+      const backHandler = BackHandler.addEventListener("hardwareBackPress", backAction);
+      return () => backHandler.remove();
+    }, [activeTab])
+  );
 
   const renderContent = () => {
     switch (activeTab) {

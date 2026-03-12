@@ -226,7 +226,7 @@ const generateMisconductReportPdf = async (complaint, authorityName) => {
     doc.moveDown(0.2);
     doc.fontSize(18).fillColor('#B91C1C').text('OFFICIAL APOLOGY & MISCONDUCT REPORT', { align: 'center' });
     doc.fillColor('black').moveDown();
-    
+
     doc.fontSize(14).fillColor('#B91C1C').text('We Sincerely Apologize', { align: 'center' });
     doc.fillColor('black').fontSize(10).text(
       'We deeply regret that this complaint was not addressed in a timely manner. Our citizens deserve better, and we take full responsibility for this service failure.',
@@ -261,7 +261,7 @@ const generateMisconductReportPdf = async (complaint, authorityName) => {
       `The department "${authorityName}" failed to provide any substantive update (status change or photographic evidence) within the mandated 48-hour escalation window. This represents a critical service delivery failure and will be recorded in the department's performance audit.`
     );
     doc.moveDown();
-    
+
     doc.fontSize(13).text('Citizen Assurance', { underline: true });
     doc.fontSize(11).text(
       'We are truly sorry for this delay. Your complaint has been flagged for immediate intervention by city administration. This report will be used to improve departmental accountability and prevent future delays.'
@@ -277,7 +277,7 @@ const generateMisconductReportPdf = async (complaint, authorityName) => {
 
 const clearActiveEscalationOnSubstantiveUpdate = async (complaint, transaction) => {
   if (!complaint) return;
-  
+
   // Clear escalation flags on any substantive update (status change or proof upload)
   const updatePayload = {
     adminDeadlineStatus: 'cleared',
@@ -286,7 +286,7 @@ const clearActiveEscalationOnSubstantiveUpdate = async (complaint, transaction) 
     responseDelayWarningLogged: false,
     forwardedByAdmin: false,
   };
-  
+
   // Only add remark if there was an active escalation
   if (complaint.adminDeadlineStatus === 'active' || complaint.forwardedByAdmin || complaint.responseDelayWarningLogged) {
     updatePayload.adminRemarks = appendAdminRemark(
@@ -401,7 +401,7 @@ const evaluateComplaintEscalation = async (complaint, options = {}) => {
   if (!complaint.adminDeadlineAt || complaint.adminDeadlineStatus !== 'active') {
     // Start a full 48-hour window from escalation time.
     const deadlineTime = Date.now() + ADMIN_DEADLINE_MS;
-    
+
     updatePayload.adminDeadlineAt = new Date(deadlineTime);
     updatePayload.adminDeadlineStatus = Date.now() >= deadlineTime ? 'missed' : 'active';
   }
@@ -899,6 +899,199 @@ exports.getModerationOverview = async (_req, res) => {
   } catch (error) {
     console.error('Get Moderation Overview Error:', error.message);
     res.status(500).json({ message: 'Server error while fetching moderation overview.' });
+  }
+};
+
+// ADMIN COMPREHENSIVE ANALYTICS
+exports.getAdminAnalytics = async (_req, res) => {
+  try {
+    // 1. All complaints with category info
+    const allComplaints = await Complaint.findAll({
+      attributes: [
+        'id', 'title', 'currentStatus', 'categoryId', 'latitude', 'longitude',
+        'createdAt', 'updatedAt', 'upvotes', 'bumpCount', 'priorityScore',
+        'rating', 'escalationLevel', 'forwardedByAdmin', 'adminDeadlineStatus',
+        'criticalFailureAt', 'appealStatus'
+      ],
+      include: [
+        { model: Category, attributes: ['id', 'name'], required: false },
+      ],
+      order: [['createdAt', 'DESC']],
+    });
+
+    const complaints = allComplaints.map(c => c.get({ plain: true }));
+
+    // 2. Status breakdown
+    const statusCounts = {};
+    const resolvedStatuses = new Set(['resolved', 'closed', 'completed']);
+    let totalResolutionMs = 0;
+    let resolutionCount = 0;
+    const ratings = [];
+    let escalatedCount = 0;
+    let criticalFailures = 0;
+    let deadlineMissed = 0;
+
+    for (const c of complaints) {
+      const status = (c.currentStatus || '').toLowerCase();
+      statusCounts[status] = (statusCounts[status] || 0) + 1;
+
+      if (resolvedStatuses.has(status) && c.createdAt && c.updatedAt) {
+        const created = new Date(c.createdAt).getTime();
+        const updated = new Date(c.updatedAt).getTime();
+        if (updated > created) {
+          totalResolutionMs += (updated - created);
+          resolutionCount++;
+        }
+      }
+      if (c.rating != null) ratings.push(c.rating);
+      if (c.forwardedByAdmin || (c.escalationLevel && c.escalationLevel !== 'none')) escalatedCount++;
+      if (status === 'critical_failure') criticalFailures++;
+      if (c.adminDeadlineStatus === 'missed' || status === 'critical_failure') deadlineMissed++;
+    }
+
+    const avgResolutionHrs = resolutionCount > 0
+      ? parseFloat((totalResolutionMs / resolutionCount / 1000 / 60 / 60).toFixed(1))
+      : 0;
+    const avgRating = ratings.length > 0
+      ? parseFloat((ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1))
+      : 0;
+    const resolved = (statusCounts['resolved'] || 0) + (statusCounts['closed'] || 0) + (statusCounts['completed'] || 0);
+    const serviceHealth = complaints.length > 0
+      ? parseFloat(((resolved / complaints.length) * 100).toFixed(1))
+      : 100;
+
+    // 3. Category breakdown
+    const categoryMap = {};
+    for (const c of complaints) {
+      const catName = c.Category?.name || 'Uncategorized';
+      const catId = c.categoryId || 0;
+      if (!categoryMap[catId]) {
+        categoryMap[catId] = { id: catId, name: catName, total: 0, resolved: 0, pending: 0, inProgress: 0, appealed: 0, critical: 0 };
+      }
+      categoryMap[catId].total++;
+      const status = (c.currentStatus || '').toLowerCase();
+      if (resolvedStatuses.has(status)) categoryMap[catId].resolved++;
+      else if (status === 'pending') categoryMap[catId].pending++;
+      else if (['in_progress', 'accepted', 'assigned'].includes(status)) categoryMap[catId].inProgress++;
+      else if (status === 'appealed') categoryMap[catId].appealed++;
+      else if (status === 'critical_failure') categoryMap[catId].critical++;
+    }
+    const categoryBreakdown = Object.values(categoryMap).sort((a, b) => b.total - a.total);
+
+    // 4. Monthly trends (last 12 months)
+    const monthlyTrends = [];
+    const now = new Date();
+    for (let i = 11; i >= 0; i--) {
+      const month = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
+      const monthName = month.toLocaleString('default', { month: 'short', year: '2-digit' });
+      let submitted = 0, resolvedInMonth = 0;
+      for (const c of complaints) {
+        const created = new Date(c.createdAt);
+        if (created >= month && created <= monthEnd) submitted++;
+        const updated = new Date(c.updatedAt);
+        const status = (c.currentStatus || '').toLowerCase();
+        if (resolvedStatuses.has(status) && updated >= month && updated <= monthEnd) resolvedInMonth++;
+      }
+      monthlyTrends.push({ month: monthName, submitted, resolved: resolvedInMonth });
+    }
+
+    // 5. Department performance
+    const departments = await AuthorityCompany.findAll({ attributes: ['id', 'name'] });
+    const deptPerformance = await Promise.all(departments.map(async (dept) => {
+      const active = await Complaint.count({
+        include: [{ model: AuthorityCompany, where: { id: dept.id } }],
+        where: { currentStatus: { [Op.in]: ['pending', 'accepted', 'in_progress'] } }
+      });
+      const deptResolved = await Complaint.count({
+        include: [{ model: AuthorityCompany, where: { id: dept.id } }],
+        where: { currentStatus: { [Op.in]: ['resolved', 'completed'] } }
+      });
+      const deptCritical = await Complaint.count({
+        include: [{ model: AuthorityCompany, where: { id: dept.id } }],
+        where: { currentStatus: 'critical_failure' }
+      });
+      const total = active + deptResolved + deptCritical;
+      return {
+        id: dept.id,
+        name: dept.name,
+        active,
+        resolved: deptResolved,
+        critical: deptCritical,
+        total,
+        performance: total > 0 ? parseFloat(((deptResolved / total) * 100).toFixed(1)) : null,
+      };
+    }));
+
+    // 6. Heatmap points
+    const heatmapPoints = complaints
+      .filter(c => c.latitude && c.longitude)
+      .map(c => ({
+        latitude: Number(c.latitude),
+        longitude: Number(c.longitude),
+        status: c.currentStatus,
+        category: c.Category?.name || 'Unknown',
+        title: c.title,
+        id: c.id,
+      }));
+
+    // 7. Resolution time distribution (buckets)
+    const resolutionBuckets = { '<24h': 0, '24-48h': 0, '48-72h': 0, '3-7d': 0, '7-14d': 0, '>14d': 0 };
+    for (const c of complaints) {
+      const status = (c.currentStatus || '').toLowerCase();
+      if (resolvedStatuses.has(status) && c.createdAt && c.updatedAt) {
+        const hrs = (new Date(c.updatedAt) - new Date(c.createdAt)) / (1000 * 60 * 60);
+        if (hrs < 24) resolutionBuckets['<24h']++;
+        else if (hrs < 48) resolutionBuckets['24-48h']++;
+        else if (hrs < 72) resolutionBuckets['48-72h']++;
+        else if (hrs < 168) resolutionBuckets['3-7d']++;
+        else if (hrs < 336) resolutionBuckets['7-14d']++;
+        else resolutionBuckets['>14d']++;
+      }
+    }
+
+    // 8. Top community-engaged complaints
+    const topEngaged = [...complaints]
+      .sort((a, b) => ((b.upvotes || 0) + (b.bumpCount || 0)) - ((a.upvotes || 0) + (a.bumpCount || 0)))
+      .slice(0, 10)
+      .map(c => ({
+        id: c.id,
+        title: c.title,
+        status: c.currentStatus,
+        category: c.Category?.name || 'Unknown',
+        upvotes: c.upvotes || 0,
+        bumps: c.bumpCount || 0,
+        priorityScore: c.priorityScore || 0,
+      }));
+
+    res.json({
+      summary: {
+        total: complaints.length,
+        pending: statusCounts['pending'] || 0,
+        accepted: statusCounts['accepted'] || 0,
+        inProgress: (statusCounts['in_progress'] || 0) + (statusCounts['assigned'] || 0),
+        resolved,
+        appealed: statusCounts['appealed'] || 0,
+        criticalFailures,
+        escalated: escalatedCount,
+        deadlineMissed,
+        avgResolutionHrs,
+        avgRating,
+        serviceHealth,
+        deadlineMissRate: complaints.length > 0 ? parseFloat(((deadlineMissed / complaints.length) * 100).toFixed(1)) : 0,
+      },
+      statusCounts,
+      categoryBreakdown,
+      monthlyTrends,
+      deptPerformance: deptPerformance.sort((a, b) => b.total - a.total),
+      heatmapPoints,
+      resolutionBuckets,
+      topEngaged,
+    });
+  } catch (error) {
+    console.error('Get Admin Analytics Error:', error.message);
+    console.error('Stack:', error.stack);
+    res.status(500).json({ message: 'Server error while fetching admin analytics.' });
   }
 };
 
@@ -2266,7 +2459,7 @@ exports.getReportedComplaints = async (req, res) => {
       include: [
         {
           model: Complaint,
-          attributes: ['id', 'title', 'description', 'currentStatus', 'createdAt'],
+          attributes: ['id', 'title', 'description', 'currentStatus', 'citizenUid', 'createdAt'],
           required: false,
           include: [
             {
