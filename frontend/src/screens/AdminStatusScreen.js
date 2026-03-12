@@ -187,8 +187,6 @@ export default function AdminStatusScreen({ darkMode, onJump }) {
           ))
         )}
       </View>
-
-      // ...existing code...
     </ScrollView>
   );
 }

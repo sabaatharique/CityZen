@@ -261,12 +261,12 @@ export default function AdminFlagsScreen({ darkMode, defaultTab, navigation }) {
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <Tag size={14} color="#D97706" />
           <View>
-             <Text style={[styles.mainText, { color: '#D97706', marginBottom: 2 }]}>{item.categoryLabel}</Text>
-             {item.categoryDescription && (
-               <Text style={[styles.subText, { color: darkMode ? '#9CA3AF' : '#6B7280', fontSize: 13 }]} numberOfLines={2}>
-                 {item.categoryDescription}
-               </Text>
-             )}
+            <Text style={[styles.mainText, { color: '#D97706', marginBottom: 2 }]}>{item.categoryLabel}</Text>
+            {item.categoryDescription && (
+              <Text style={[styles.subText, { color: darkMode ? '#9CA3AF' : '#6B7280', fontSize: 13 }]} numberOfLines={2}>
+                {item.categoryDescription}
+              </Text>
+            )}
           </View>
         </View>
         <Text style={styles.time}><Clock size={10} color="#9CA3AF" /> {formatTime(item.createdAt)}</Text>
@@ -378,7 +378,7 @@ export default function AdminFlagsScreen({ darkMode, defaultTab, navigation }) {
 
       Alert.alert(
         "Reject Appeal & Add Strike?",
-        `This will reject the appeal and the complaint stays rejected.\\n\\n${item.user} currently has ${userInfo.strikes} strike(s).\\n\\nDo you want to add a strike for inappropriate appeal?`,
+        `This will reject the appeal and the complaint stays rejected.\n\n${item.user} currently has ${userInfo.strikes} strike(s).\n\nDo you want to add a strike for inappropriate appeal?`,
         [
           { text: "Cancel" },
           {
@@ -439,7 +439,7 @@ export default function AdminFlagsScreen({ darkMode, defaultTab, navigation }) {
                 if (strikeResponse.data.shouldBan && !strikeResponse.data.isBanned) {
                   Alert.alert(
                     "Ban User?",
-                    `${item.user} now has ${strikeResponse.data.strikes} strikes.\\n\\nDo you want to ban this user permanently?`,
+                    `${item.user} now has ${strikeResponse.data.strikes} strikes.\n\nDo you want to ban this user permanently?`,
                     [
                       { text: "Not Now" },
                       {
@@ -463,49 +463,63 @@ export default function AdminFlagsScreen({ darkMode, defaultTab, navigation }) {
     } else if (type === 'delete') {
       // Get citizenUid from the item
       const citizenUid = item.citizenUid;
-      const userInfo = await getUserModerationInfo(citizenUid);
+      const isValidUser = citizenUid && citizenUid !== 'unknown';
+      const userInfo = isValidUser ? await getUserModerationInfo(citizenUid) : { strikes: 0, isBanned: false };
       const futureStrikes = userInfo.strikes + 1;
 
       Alert.alert(
-        "Delete Appeal & Add Strike?",
-        `This will permanently remove Complaint #${item.complaintId}.\\n\\nUser currently has ${userInfo.strikes} strike(s).\\nAfter this action: ${futureStrikes} strike(s)${futureStrikes >= 5 ? '\\n⚠️ User will reach ban threshold!' : ''}`,
+        isValidUser ? "Delete Appeal & Add Strike?" : "Delete Appeal?",
+        isValidUser
+          ? `This will permanently remove Complaint #${item.complaintId}.\n\nUser currently has ${userInfo.strikes} strike(s).\nAfter this action: ${futureStrikes} strike(s)${futureStrikes >= 5 ? '\n⚠️ User will reach ban threshold!' : ''}`
+          : `This will permanently remove Complaint #${item.complaintId}.`,
         [
           { text: "Cancel" },
           {
-            text: "Delete & Strike",
+            text: isValidUser ? "Delete & Strike" : "Delete",
             style: "destructive",
             onPress: async () => {
               try {
-                // Delete the complaint from backend
-                await axios.delete(`${API_URL}/api/complaints/${item.complaintId}`, {
-                  data: { citizenUid: 'admin' }, // Admin override
-                  headers: { 'bypass-tunnel-reminder': 'true' },
-                });
+                // Delete the complaint from backend (tolerate 404)
+                try {
+                  await axios.delete(`${API_URL}/api/complaints/${item.complaintId}`, {
+                    data: { citizenUid: 'admin' },
+                    headers: { 'bypass-tunnel-reminder': 'true' },
+                  });
+                } catch (deleteErr) {
+                  if (deleteErr.response?.status !== 404) throw deleteErr;
+                }
 
-                // Add strike to user
-                const strikeResponse = await axios.post(`${API_URL}/api/moderation/strike`, {
-                  citizenUid: citizenUid,
-                  reason: `Inappropriate appeal deleted`,
-                  complaintId: item.complaintId
-                }, {
-                  headers: { 'bypass-tunnel-reminder': 'true' },
-                });
+                // Add strike to user if valid
+                let strikeResponse = null;
+                if (isValidUser) {
+                  try {
+                    strikeResponse = await axios.post(`${API_URL}/api/moderation/strike`, {
+                      citizenUid: citizenUid,
+                      reason: `Inappropriate appeal deleted`,
+                      complaintId: item.complaintId
+                    }, {
+                      headers: { 'bypass-tunnel-reminder': 'true' },
+                    });
+                  } catch (strikeErr) {
+                    console.error('Strike error (non-fatal):', strikeErr.message);
+                  }
 
-                // Clear cache
-                setUserModerationCache(prev => {
-                  const newCache = { ...prev };
-                  delete newCache[citizenUid];
-                  return newCache;
-                });
+                  // Clear cache
+                  setUserModerationCache(prev => {
+                    const newCache = { ...prev };
+                    delete newCache[citizenUid];
+                    return newCache;
+                  });
+                }
 
                 // Remove from local state
                 setAppeals(appeals.filter(a => a.id !== item.id));
 
                 // Check if should ban
-                if (strikeResponse.data.shouldBan && !strikeResponse.data.isBanned) {
+                if (strikeResponse?.data?.shouldBan && !strikeResponse?.data?.isBanned) {
                   Alert.alert(
                     "Ban User?",
-                    `User now has ${strikeResponse.data.strikes} strikes.\\n\\nDo you want to ban this user permanently?`,
+                    `User now has ${strikeResponse.data.strikes} strikes.\n\nDo you want to ban this user permanently?`,
                     [
                       { text: "Not Now" },
                       {
@@ -515,8 +529,10 @@ export default function AdminFlagsScreen({ darkMode, defaultTab, navigation }) {
                       }
                     ]
                   );
-                } else {
+                } else if (strikeResponse?.data) {
                   Alert.alert("Deleted", `The complaint has been deleted. User now has ${strikeResponse.data.strikes} strike(s).`);
+                } else {
+                  Alert.alert("Deleted", "The complaint has been removed.");
                 }
               } catch (error) {
                 console.error('Delete appeal error:', error);
@@ -532,61 +548,123 @@ export default function AdminFlagsScreen({ darkMode, defaultTab, navigation }) {
   // --- LOGIC FOR REPORTS ---
   const handleReportAction = async (item, action) => {
     if (action === 'delete') {
-      // Get user info first
-      const userInfo = await getUserModerationInfo(item.citizenUid);
+      // Check if complaint still exists
+      if (!item.complaint) {
+        // Complaint already deleted — just dismiss the report
+        Alert.alert(
+          "Complaint Already Deleted",
+          "This complaint no longer exists. Dismiss the report?",
+          [
+            { text: "Cancel" },
+            {
+              text: "Dismiss Report",
+              onPress: async () => {
+                try {
+                  await axios.patch(`${API_URL}/api/complaints/reports/${item.id}`,
+                    { status: 'dismissed' },
+                    { headers: { 'bypass-tunnel-reminder': 'true' } }
+                  );
+                  setReports(reports.filter(r => r.id !== item.id));
+                  Alert.alert("Dismissed", "The orphaned report has been dismissed.");
+                } catch (error) {
+                  console.error('Dismiss error:', error);
+                  Alert.alert('Error', 'Failed to dismiss report.');
+                }
+              }
+            }
+          ]
+        );
+        return;
+      }
+
+      // Get user info first (handle unknown citizenUid gracefully)
+      const citizenUid = item.citizenUid;
+      const isValidUser = citizenUid && citizenUid !== 'unknown';
+      const userInfo = isValidUser ? await getUserModerationInfo(citizenUid) : { strikes: 0, isBanned: false };
       const futureStrikes = userInfo.strikes + 1;
 
       Alert.alert(
-        "Delete Post & Add Strike?",
-        `This will permanently remove the complaint.\\n\\n${item.user} currently has ${userInfo.strikes} strike(s).\\nAfter this action: ${futureStrikes} strike(s)${futureStrikes >= 5 ? '\\n⚠️ User will reach ban threshold!' : ''}`,
+        isValidUser ? "Delete Post & Add Strike?" : "Delete Post?",
+        isValidUser
+          ? `This will permanently remove the complaint.\n\n${item.user} currently has ${userInfo.strikes} strike(s).\nAfter this action: ${futureStrikes} strike(s)${futureStrikes >= 5 ? '\n⚠️ User will reach ban threshold!' : ''}`
+          : `This will permanently remove the complaint.`,
         [
           { text: "Cancel" },
           {
-            text: "Delete & Strike",
+            text: isValidUser ? "Delete & Strike" : "Delete",
             style: "destructive",
             onPress: async () => {
               try {
-                // Delete the complaint from backend
-                await axios.delete(`${API_URL}/api/complaints/${item.complaintId}`, {
-                  data: { citizenUid: 'admin' },
-                  headers: { 'bypass-tunnel-reminder': 'true' },
-                });
+                // Try to delete the complaint from backend
+                let complaintDeleted = true;
+                try {
+                  await axios.delete(`${API_URL}/api/complaints/${item.complaintId}`, {
+                    data: { citizenUid: 'admin' },
+                    headers: { 'bypass-tunnel-reminder': 'true' },
+                  });
+                } catch (deleteErr) {
+                  if (deleteErr.response?.status === 404) {
+                    // Complaint already gone — that's fine, continue
+                    complaintDeleted = true;
+                  } else {
+                    throw deleteErr;
+                  }
+                }
 
-                // Add strike to user
-                const strikeResponse = await axios.post(`${API_URL}/api/moderation/strike`, {
-                  citizenUid: item.citizenUid,
-                  reason: `Reported complaint deleted: ${item.reason}`,
-                  complaintId: item.complaintId
-                }, {
-                  headers: { 'bypass-tunnel-reminder': 'true' },
-                });
+                // Dismiss the report record too
+                try {
+                  await axios.patch(`${API_URL}/api/complaints/reports/${item.id}`,
+                    { status: 'resolved' },
+                    { headers: { 'bypass-tunnel-reminder': 'true' } }
+                  );
+                } catch (_) { /* non-critical */ }
+
+                // Add strike to user if we have a valid citizenUid
+                let strikeResponse = null;
+                if (isValidUser) {
+                  try {
+                    strikeResponse = await axios.post(`${API_URL}/api/moderation/strike`, {
+                      citizenUid: citizenUid,
+                      reason: `Reported complaint deleted: ${item.reason}`,
+                      complaintId: item.complaintId
+                    }, {
+                      headers: { 'bypass-tunnel-reminder': 'true' },
+                    });
+                  } catch (strikeErr) {
+                    console.error('Strike error (non-fatal):', strikeErr.message);
+                  }
+                }
 
                 // Clear cache for this user
-                setUserModerationCache(prev => {
-                  const newCache = { ...prev };
-                  delete newCache[item.citizenUid];
-                  return newCache;
-                });
+                if (isValidUser) {
+                  setUserModerationCache(prev => {
+                    const newCache = { ...prev };
+                    delete newCache[citizenUid];
+                    return newCache;
+                  });
+                }
 
                 // Remove from local state
                 setReports(reports.filter(r => r.id !== item.id));
 
                 // Check if should ban
-                if (strikeResponse.data.shouldBan && !strikeResponse.data.isBanned) {
+                if (strikeResponse?.data?.shouldBan && !strikeResponse?.data?.isBanned) {
                   Alert.alert(
                     "Ban User?",
-                    `${item.user} now has ${strikeResponse.data.strikes} strikes.\\n\\nDo you want to ban this user permanently?`,
+                    `${item.user} now has ${strikeResponse.data.strikes} strikes.\n\nDo you want to ban this user permanently?`,
                     [
                       { text: "Not Now" },
                       {
                         text: "Ban User",
                         style: "destructive",
-                        onPress: () => banUser(item.citizenUid, strikeResponse.data.strikes)
+                        onPress: () => banUser(citizenUid, strikeResponse.data.strikes)
                       }
                     ]
                   );
-                } else {
+                } else if (strikeResponse?.data) {
                   Alert.alert("Action Taken", `Complaint deleted. ${item.user} now has ${strikeResponse.data.strikes} strike(s).`);
+                } else {
+                  Alert.alert("Deleted", "The complaint has been removed.");
                 }
               } catch (error) {
                 console.error('Delete error:', error);
