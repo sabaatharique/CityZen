@@ -383,3 +383,9 @@ exports.verifyOtpChallenge = async (req, res) => {
 
 exports.requestOtp = exports.requestLoginOtp;
 exports.verifyOtp = exports.verifyOtpChallenge;
+
+// 3. LOGOUT Logic (Stateless)
+exports.logout = async (req, res) => {
+  // For stateless JWT/Firebase, logout is handled on client. This endpoint is for API compatibility.
+  return res.status(200).json({ message: 'Logged out successfully.' });
+};

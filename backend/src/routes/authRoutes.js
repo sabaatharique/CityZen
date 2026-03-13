@@ -1,4 +1,3 @@
-
 // backend/src/routes/authRoutes.js
 const express = require('express');
 const router = express.Router();
@@ -20,5 +19,8 @@ router.post('/verify-otp', authController.verifyOtp);
 // 2. LOGIN: GET /api/auth/users/:firebaseUid (NEW ROUTE)
 // Fetches the user's profile and role using the UID from successful Firebase login.
 router.get('/users/:firebaseUid', authController.getProfileByUid);
+
+// 3. LOGOUT: POST /api/auth/logout
+router.post('/auth/logout', authController.logout);
 
 module.exports = router;

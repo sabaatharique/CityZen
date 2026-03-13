@@ -91,13 +91,11 @@ export const authAPI = {
   logout: async () => {
     try {
       await api.post('/auth/logout');
-      await AsyncStorage.removeItem('userToken');
-      await AsyncStorage.removeItem('userData');
     } catch (error) {
-      // Still clear local storage even if API call fails
-      await AsyncStorage.removeItem('userToken');
-      await AsyncStorage.removeItem('userData');
+      // Ignore network errors on logout
     }
+    // Fully clear AsyncStorage for guest mode
+    await AsyncStorage.clear();
   }
 };
 

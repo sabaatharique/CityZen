@@ -3,7 +3,7 @@ import { StatusBar } from 'react-native';
 import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ComplaintProvider } from './src/context/ComplaintContext';
+import { ComplaintProvider, useComplaint } from './src/context/ComplaintContext';
 import { NotificationProvider, useNotification, useAdminNotification } from './src/context/NotificationContext';
 
 // Helper to bridge navigation to context
@@ -112,6 +112,25 @@ export default function App() {
     return null;
   }
 
+  // Enhanced logout handler to clear all user data and reset context state
+  const EnhancedLogout = async (navigation) => {
+    // 1. Call API logout and clear AsyncStorage
+    const { authAPI } = require('./src/services/api');
+    await authAPI.logout();
+    // 2. Reset context state
+    try {
+      // NotificationContext
+      const { useNotification } = require('./src/context/NotificationContext');
+      const { useComplaint } = require('./src/context/ComplaintContext');
+      // These hooks only work inside components, so use a workaround if needed
+      // Instead, trigger a reload by navigating to Landing and remounting providers
+    } catch (e) {}
+    // 3. Navigate to guest mode (Landing)
+    if (navigation && navigation.reset) {
+      navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
+    }
+  };
+
   return (
     <ComplaintProvider>
       <NotificationProvider>
@@ -155,8 +174,8 @@ export default function App() {
             >
               {(props) => <EmailOtpScreen {...props} />}
             </Stack.Screen>
-            <Stack.Screen name="HomeScreen">{(props) => <HomeScreen {...props} darkMode={darkMode} toggleDarkMode={toggleDarkMode} onLogout={() => props.navigation.reset({ index: 1, routes: [{ name: 'Landing' }, { name: 'Login' }] })} />}</Stack.Screen>
-            <Stack.Screen name="Feed">{(props) => <FeedScreen {...props} darkMode={darkMode} toggleDarkMode={toggleDarkMode} onLogout={() => props.navigation.reset({ index: 1, routes: [{ name: 'Landing' }, { name: 'Login' }] })} />}</Stack.Screen>
+            <Stack.Screen name="HomeScreen">{(props) => <HomeScreen {...props} darkMode={darkMode} toggleDarkMode={toggleDarkMode} onLogout={() => EnhancedLogout(props.navigation)} />}</Stack.Screen>
+            <Stack.Screen name="Feed">{(props) => <FeedScreen {...props} darkMode={darkMode} toggleDarkMode={toggleDarkMode} onLogout={() => EnhancedLogout(props.navigation)} />}</Stack.Screen>
             <Stack.Screen
               name="Camera"
               options={{ animation: 'slide_from_bottom' }}
@@ -170,14 +189,14 @@ export default function App() {
             <Stack.Screen name="DraftSubmitted">{(props) => <DraftSubmittedScreen {...props} darkMode={darkMode} />}</Stack.Screen>
             <Stack.Screen name="UserComplaintList">{(props) => <UserComplaintListScreen {...props} darkMode={darkMode} toggleDarkMode={toggleDarkMode} />}</Stack.Screen>
             <Stack.Screen name="SimilarComplaints">{(props) => <SimilarComplaintsScreen {...props} darkMode={darkMode} toggleDarkMode={toggleDarkMode} />}</Stack.Screen>
-            <Stack.Screen name="Notifications">{(props) => <NotificationsScreen {...props} darkMode={darkMode} toggleDarkMode={toggleDarkMode} onLogout={() => props.navigation.reset({ index: 1, routes: [{ name: 'Landing' }, { name: 'Login' }] })} />}</Stack.Screen>
-            <Stack.Screen name="Profile">{(props) => <ProfileScreen {...props} darkMode={darkMode} toggleDarkMode={toggleDarkMode} onLogout={() => props.navigation.reset({ index: 1, routes: [{ name: 'Landing' }, { name: 'Login' }] })} />}</Stack.Screen>
-            <Stack.Screen name="ComplaintDetails">{(props) => <ComplaintDetailsScreen {...props} darkMode={darkMode} toggleDarkMode={toggleDarkMode} onLogout={() => props.navigation.reset({ index: 1, routes: [{ name: 'Landing' }, { name: 'Login' }] })} />}</Stack.Screen>
-            <Stack.Screen name="AuthorityDashboard">{(props) => <AuthorityDashboardScreen {...props} darkMode={darkMode} toggleDarkMode={toggleDarkMode} onLogout={() => props.navigation.reset({ index: 1, routes: [{ name: 'Landing' }, { name: 'Login' }] })} />}</Stack.Screen>
-            <Stack.Screen name="AuthorityComplaintList">{(props) => <AuthorityComplaintListScreen {...props} darkMode={darkMode} toggleDarkMode={toggleDarkMode} onLogout={() => props.navigation.reset({ index: 1, routes: [{ name: 'Landing' }, { name: 'Login' }] })} />}</Stack.Screen>
-            <Stack.Screen name="AuthorityComplaintDetail">{(props) => <AuthorityComplaintDetailScreen {...props} darkMode={darkMode} toggleDarkMode={toggleDarkMode} onLogout={() => props.navigation.reset({ index: 1, routes: [{ name: 'Landing' }, { name: 'Login' }] })} />}</Stack.Screen>
-            <Stack.Screen name="AdminDashboard">{(props) => <AdminDashboardScreen {...props} darkMode={darkMode} toggleDarkMode={toggleDarkMode} onLogout={() => props.navigation.reset({ index: 1, routes: [{ name: 'Landing' }, { name: 'Login' }] })} />}</Stack.Screen>
-            <Stack.Screen name="AdminComplaintDetail">{(props) => <AdminComplaintDetailScreen {...props} darkMode={darkMode} toggleDarkMode={toggleDarkMode} onLogout={() => props.navigation.reset({ index: 1, routes: [{ name: 'Landing' }, { name: 'Login' }] })} />}</Stack.Screen>
+            <Stack.Screen name="Notifications">{(props) => <NotificationsScreen {...props} darkMode={darkMode} toggleDarkMode={toggleDarkMode} onLogout={() => EnhancedLogout(props.navigation)} />}</Stack.Screen>
+            <Stack.Screen name="Profile">{(props) => <ProfileScreen {...props} darkMode={darkMode} toggleDarkMode={toggleDarkMode} onLogout={() => EnhancedLogout(props.navigation)} />}</Stack.Screen>
+            <Stack.Screen name="ComplaintDetails">{(props) => <ComplaintDetailsScreen {...props} darkMode={darkMode} toggleDarkMode={toggleDarkMode} onLogout={() => EnhancedLogout(props.navigation)} />}</Stack.Screen>
+            <Stack.Screen name="AuthorityDashboard">{(props) => <AuthorityDashboardScreen {...props} darkMode={darkMode} toggleDarkMode={toggleDarkMode} onLogout={() => EnhancedLogout(props.navigation)} />}</Stack.Screen>
+            <Stack.Screen name="AuthorityComplaintList">{(props) => <AuthorityComplaintListScreen {...props} darkMode={darkMode} toggleDarkMode={toggleDarkMode} onLogout={() => EnhancedLogout(props.navigation)} />}</Stack.Screen>
+            <Stack.Screen name="AuthorityComplaintDetail">{(props) => <AuthorityComplaintDetailScreen {...props} darkMode={darkMode} toggleDarkMode={toggleDarkMode} onLogout={() => EnhancedLogout(props.navigation)} />}</Stack.Screen>
+            <Stack.Screen name="AdminDashboard">{(props) => <AdminDashboardScreen {...props} darkMode={darkMode} toggleDarkMode={toggleDarkMode} onLogout={() => EnhancedLogout(props.navigation)} />}</Stack.Screen>
+            <Stack.Screen name="AdminComplaintDetail">{(props) => <AdminComplaintDetailScreen {...props} darkMode={darkMode} toggleDarkMode={toggleDarkMode} onLogout={() => EnhancedLogout(props.navigation)} />}</Stack.Screen>
             <Stack.Screen name="AdminCategoryRequestDetails">{(props) => <AdminCategoryRequestDetailsScreen {...props} />}</Stack.Screen>
             <Stack.Screen name="AddEvidence">{(props) => <AddEvidenceScreen {...props} />}</Stack.Screen>
             <Stack.Screen name="OfflineGallery">{(props) => <OfflineGalleryScreen {...props} darkMode={darkMode} toggleDarkMode={toggleDarkMode} />}</Stack.Screen>

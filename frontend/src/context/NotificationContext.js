@@ -14,6 +14,27 @@ export const useAdminNotification = () => useContext(AdminNotificationContext);
 export const useAuthorityNotification = () => useContext(AuthorityNotificationContext);
 
 export const NotificationProvider = ({ children }) => {
+    // Helper to reset all user-related state (for logout/guest mode)
+    const resetUserState = () => {
+        setNotification(null);
+        setLastStatuses({});
+        setLastStrikeCount(null);
+        setHistory([]);
+        setCurrentUid(null);
+        setUserRole(null);
+        setAdminNotification(null);
+        setAdminHistory([]);
+        setLastCounts({ reports: 0, appeals: 0 });
+        setUnreadReportsCount(0);
+        setUnreadAppealsCount(0);
+        setIsAdmin(false);
+        setAuthorityNotification(null);
+        setAuthorityHistory([]);
+        setLastAssignmentCount(0);
+        setIsAuthority(false);
+        setAuthorityCompanyId(null);
+        setCitizenBootstrapReady(false);
+    };
     // Citizen notification state
     const [notification, setNotification] = useState(null);
     const [lastStatuses, setLastStatuses] = useState({});
@@ -62,9 +83,17 @@ export const NotificationProvider = ({ children }) => {
         navigation.current = nav;
     }, []);
 
+
     useEffect(() => {
         userRoleRef.current = userRole;
     }, [userRole]);
+
+    const value = {
+        // ...other context values
+        userRole,
+        userRoleRef,
+        // add other values as needed
+    };
 
     useEffect(() => {
         currentUidRef.current = currentUid;

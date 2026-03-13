@@ -20,20 +20,22 @@ export default function ProfileScreen({ navigation, onLogout, darkMode, toggleDa
     loading: true
   });
 
-  // Auth guard - redirect if not logged in
+  // Auth guard - redirect if not logged in (on mount and on focus)
   useEffect(() => {
     const checkAuth = async () => {
       try {
         const userDataStr = await AsyncStorage.getItem('userData');
         if (!userDataStr) {
-          navigation.reset({ index: 1, routes: [{ name: 'Landing' }, { name: 'Login' }] });
+          navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
         }
       } catch (error) {
         console.error('Auth check error:', error);
-        navigation.reset({ index: 1, routes: [{ name: 'Landing' }, { name: 'Login' }] });
+        navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
       }
     };
     checkAuth();
+    const unsubscribe = navigation.addListener('focus', checkAuth);
+    return unsubscribe;
   }, [navigation]);
 
   useEffect(() => {

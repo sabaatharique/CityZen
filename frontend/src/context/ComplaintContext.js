@@ -55,6 +55,7 @@ export const ComplaintProvider = ({ children }) => {
     isDraftMode,
     setIsDraftMode,
     resetState,
+    // Expose resetState for logout/guest mode
   };
 
   return (
