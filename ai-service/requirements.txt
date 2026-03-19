@@ -1,4 +1,0 @@
-fastapi
-ultralytics
-Pillow
-uvicorn

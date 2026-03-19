@@ -13,23 +13,14 @@ gnome-terminal \
 # ⏳ Wait 20 seconds
 sleep 20
 
-
-# === Terminal 2: AI Service ===
-gnome-terminal \
-  --tab --title="AI Service" -- bash -c "
-    cd ai-service &&
-    source venv/bin/activate &&
-    python -m uvicorn ai_service:app --host 0.0.0.0 --port 8000;
-    exec bash"
-
-# === Terminal 3: Frontend ===
+# === Terminal 2: Frontend ===
 gnome-terminal \
   --tab --title="CityZen Frontend" -- bash -c "
     cd frontend &&
     npx expo start -c;
     exec bash"
 
-# === Terminal 4: OpenRouter Service ===
+# === Terminal 3: OpenRouter Service ===
 gnome-terminal \
   --tab --title="OpenRouter Service" -- bash -c "
     cd openrouter-service &&

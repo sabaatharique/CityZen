@@ -8,30 +8,7 @@ const { Category, Complaint, ComplaintImages } = require('../models');
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() }); // Changed to memory storage
 
-const AI_SERVICE_URL = process.env.EXPO_PUBLIC_AI_SERVICE_URL || process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000';
 const OPENROUTER_API_URL = process.env.EXPO_PUBLIC_OPENROUTER_API_URL || process.env.OPENROUTER_API_URL || 'http://127.0.0.1:8001';
-
-router.post('/detect-pothole', upload.single('image'), async (req, res) => {
-  try {
-    const formData = new FormData();
-    formData.append(
-      'image',
-      req.file.buffer,
-      { filename: req.file.originalname, contentType: req.file.mimetype }
-    );
-
-    const aiRes = await axios.post(
-      `${AI_SERVICE_URL}/detect`,
-      formData,
-      { headers: formData.getHeaders() }
-    );
-
-    res.json(aiRes.data);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'AI detection failed' });
-  }
-});
 
 router.post('/generate-text', async (req, res) => {
   try {
