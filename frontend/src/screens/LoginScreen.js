@@ -14,7 +14,6 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export default function LoginScreen({ navigation }) {
-  // NOTE: Role state is kept for UI only; actual login role is fetched from DB
   const [role, setRole] = useState('citizen');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -33,6 +32,36 @@ export default function LoginScreen({ navigation }) {
     }
   };
 
+  // Helper to fetch user profile from DB and get their actual role
+  const fetchUserProfile = async (firebaseUid) => {
+    try {
+      const response = await axios.get(`${API_URL}/api/users/${firebaseUid}`, {
+        headers: {
+          'bypass-tunnel-reminder': 'true',
+          'Content-Type': 'application/json'
+        }
+      });
+      return response.data;
+    } catch (err) {
+      // Return null if user profile doesn't exist in DB (404)
+      if (err.response && err.response.status === 404) {
+        return null;
+      }
+      throw err; // Re-throw other errors (network, 500, etc.)
+    }
+  };
+
+  // Navigate to the correct screen based on the user's actual role
+  const navigateByRole = (userRole) => {
+    if (userRole === 'admin') {
+      navigation.reset({ index: 0, routes: [{ name: 'AdminDashboard' }] });
+    } else if (userRole === 'authority') {
+      navigation.reset({ index: 0, routes: [{ name: 'AuthorityDashboard' }] });
+    } else {
+      navigation.reset({ index: 0, routes: [{ name: 'HomeScreen' }] });
+    }
+  };
+
   const handleLogin = async () => {
     // Basic Validation
     if (!email || !password) {
@@ -48,21 +77,38 @@ export default function LoginScreen({ navigation }) {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
 
-      // 2. Check if OTP is required
-      const otpRequired = await checkOtpRequired(firebaseUser.uid);
+      // 2. Fetch the user's actual profile from the DB to validate role
+      const userProfile = await fetchUserProfile(firebaseUser.uid);
 
-      if (!otpRequired) {
-        // Persist user session (similar to OTP flow)
-        await AsyncStorage.setItem('userData', JSON.stringify({
-          firebaseUid: firebaseUser.uid,
-          email: firebaseUser.email,
-        }));
-        // Proceed to home/dashboard (no OTP needed)
-        navigation.navigate('HomeScreen');
+      // If the user doesn't have a profile in the DB yet, they need to sign up
+      if (!userProfile) {
+        setError('User profile not found in database. Please sign up first.');
         return;
       }
 
-      // 3. Request login OTP challenge as before
+      const actualRole = userProfile.role;
+
+      // 3. Validate the selected role matches the user's actual role in the DB
+      if (actualRole && actualRole !== role) {
+        const roleLabel = actualRole.charAt(0).toUpperCase() + actualRole.slice(1);
+        const selectedLabel = role.charAt(0).toUpperCase() + role.slice(1);
+        setError(`This account is registered as "${roleLabel}". You selected "${selectedLabel}". Please select the correct role.`);
+        return;
+      }
+
+      // 4. Check if OTP is required
+      const otpRequired = await checkOtpRequired(firebaseUser.uid);
+
+      if (!otpRequired) {
+        // Persist user session with full profile data
+        await AsyncStorage.setItem('userData', JSON.stringify(userProfile));
+        await AsyncStorage.setItem('userToken', firebaseUser.uid);
+        // Navigate to the correct dashboard based on actual role
+        navigateByRole(actualRole);
+        return;
+      }
+
+      // 5. Request login OTP challenge as before
       const response = await axios.post(`${API_URL}/api/auth/login/request-otp`, {
         firebaseUid: firebaseUser.uid,
       }, {
@@ -120,7 +166,7 @@ export default function LoginScreen({ navigation }) {
             </View>
           )}
 
-          {/* Role Selector (Kept for UI look, but not used for navigation) */}
+          {/* Role Selector - used to validate the user's actual role matches their selection */}
           <View style={styles.roleContainer}>
             {['citizen', 'authority', 'admin'].map((r) => (
               <TouchableOpacity

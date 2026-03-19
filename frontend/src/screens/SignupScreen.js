@@ -11,7 +11,7 @@ import {
 } from 'lucide-react-native';
 import axios from 'axios';
 import { auth } from '../config/firebase';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -60,6 +60,21 @@ export default function SignupScreen({ navigation }) {
     else setDepartments([]);
   }, [role]);
 
+  // Helper to check if a DB profile already exists for a Firebase UID
+  const checkDbProfileExists = async (firebaseUid) => {
+    try {
+      const response = await axios.get(`${API_URL}/api/users/${firebaseUid}`, {
+        headers: { 'bypass-tunnel-reminder': 'true', 'Content-Type': 'application/json' }
+      });
+      return response.data; // profile exists
+    } catch (err) {
+      if (err.response && err.response.status === 404) {
+        return null; // no profile in DB
+      }
+      throw err;
+    }
+  };
+
   const handleSignUp = async () => {
     if (!formData.email || !formData.password || !formData.fullName) {
       Alert.alert('Missing Fields', 'Please fill in all required fields.');
@@ -76,13 +91,59 @@ export default function SignupScreen({ navigation }) {
 
     setLoading(true);
     try {
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        formData.email,
-        formData.password
-      );
+      let firebaseUid;
+
+      try {
+        // Try creating a new Firebase user
+        const userCredential = await createUserWithEmailAndPassword(
+          auth,
+          formData.email,
+          formData.password
+        );
+        firebaseUid = userCredential.user.uid;
+      } catch (firebaseError) {
+        if (firebaseError.code === 'auth/email-already-in-use') {
+          // User exists in Firebase — sign in to get their UID
+          try {
+            const existingCredential = await signInWithEmailAndPassword(
+              auth,
+              formData.email,
+              formData.password
+            );
+            firebaseUid = existingCredential.user.uid;
+
+            // Check if they already have a DB profile
+            const existingProfile = await checkDbProfileExists(firebaseUid);
+            if (existingProfile) {
+              // Profile already exists in DB — they should log in instead
+              Alert.alert(
+                'Account Exists',
+                'This email already has a complete account. Please log in instead.',
+                [
+                  { text: 'Go to Login', onPress: () => navigation.navigate('Login') },
+                  { text: 'OK', style: 'cancel' }
+                ]
+              );
+              return;
+            }
+            // No DB profile — continue with signup OTP to create it
+          } catch (signInError) {
+            // Wrong password or other Firebase sign-in error
+            if (signInError.code === 'auth/wrong-password' || signInError.code === 'auth/invalid-credential') {
+              Alert.alert('Sign Up Error', 'This email is already registered. The password you entered does not match. Please log in with the correct password.');
+            } else {
+              Alert.alert('Sign Up Error', 'This email is already registered. Please try logging in.');
+            }
+            return;
+          }
+        } else {
+          // Other Firebase errors (weak password, invalid email, etc.)
+          throw firebaseError;
+        }
+      }
+
       const profileData = {
-        firebaseUid: userCredential.user.uid,
+        firebaseUid,
         role,
         fullName: formData.fullName,
         email: formData.email,
@@ -104,10 +165,12 @@ export default function SignupScreen({ navigation }) {
     } catch (error) {
       let msg = 'Unexpected error';
       if (error.code === 'auth/email-already-in-use') msg = 'Email already in use!';
+      else if (error.code === 'auth/weak-password') msg = 'Password is too weak. Use at least 6 characters.';
+      else if (error.code === 'auth/invalid-email') msg = 'Invalid email address.';
       else if (!error.response) msg = 'Connection failed.';
       else if (error.response?.data?.message) msg = error.response.data.message;
       Alert.alert('Sign Up Error', msg);
-      console.error(error);
+      console.warn('Signup error:', error);
     } finally {
       setLoading(false);
     }
