@@ -6,7 +6,7 @@ CityZen is a civic issue reporting platform that helps citizens report real-worl
 
 CityZen is designed to make local problem reporting more accessible, traceable, and accountable. Instead of relying on slow or informal complaint channels, the platform gives citizens a structured way to submit evidence-based complaints with images, location data, and category information. The system then stores the complaint, recommends or routes it to the responsible authority, and supports follow-up actions until the issue is resolved, appealed, or formally moderated.
 
-The project combines a React Native and Expo frontend, a Node.js and Express backend, PostgreSQL via Sequelize, a FastAPI-based AI service for image analysis, and a second FastAPI service for OpenRouter-powered recommendation and text assistance.
+The project combines a React Native and Expo frontend, a Node.js and Express backend, PostgreSQL via Sequelize, and a FastAPI service for OpenRouter-powered AI detection, recommendation, and text assistance.
 
 ## 2. Motivation
 
@@ -79,7 +79,7 @@ As an admin, CityZen provides platform-wide oversight and governance capabilitie
 ### Prerequisites
 
 - Node.js and npm
-- Python 3.10+
+- Python 3.10+ (for the OpenRouter service)
 - PostgreSQL
 - Expo Go or a simulator/emulator for mobile testing
 
@@ -91,7 +91,6 @@ Create or update these files before starting the project:
 
 - `EXPO_PUBLIC_API_URL=http://<YOUR_LOCAL_IP>:3000`
 - `EXPO_PUBLIC_OPENROUTER_API_URL=http://<YOUR_LOCAL_IP>:8001`
-- `EXPO_PUBLIC_AI_SERVICE_URL=http://<YOUR_LOCAL_IP>:8000`
 - Firebase client keys used by the frontend
 
 `backend/.env`
@@ -115,7 +114,6 @@ Use your machine's local IP in `frontend/.env` if the app will be opened on a ph
 ```bash
 cd backend && npm install
 cd ../frontend && npm install
-cd ../ai-service && python -m venv venv && source venv/bin/activate && pip install -r requirements.txt
 cd ../openrouter-service && python -m venv venv && source venv/bin/activate && pip install -r requirements.txt
 ```
 
@@ -133,7 +131,7 @@ On Windows PowerShell:
 .\run-cityzen.ps1
 ```
 
-If you prefer to run services manually, use four terminals:
+If you prefer to run services manually, use three terminals:
 
 ```bash
 # Terminal 1
@@ -143,9 +141,6 @@ cd backend && npm run dev
 cd frontend && npx expo start
 
 # Terminal 3
-cd ai-service && source venv/bin/activate && uvicorn ai_service:app --host 0.0.0.0 --port 8000
-
-# Terminal 4
 cd openrouter-service && source venv/bin/activate && uvicorn openrouter_service:app --host 0.0.0.0 --port 8001
 ```
 
