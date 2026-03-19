@@ -93,7 +93,20 @@ export default function AdminStatusScreen({ darkMode, onJump }) {
     <ScrollView contentContainerStyle={styles.padding}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         <Text style={[styles.title, darkMode && { color: 'white' }]}>Command Center</Text>
-        {/* View Analytics button removed */}
+        <TouchableOpacity
+          style={{
+            backgroundColor: '#1E88E5',
+            borderRadius: 8,
+            paddingVertical: 6,
+            paddingHorizontal: 14,
+            marginLeft: 10,
+            alignItems: 'center',
+            flexDirection: 'row',
+          }}
+          onPress={() => navigation.navigate('AdminAnalytics')}
+        >
+          <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>View Analytics</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.kpiGrid}>
